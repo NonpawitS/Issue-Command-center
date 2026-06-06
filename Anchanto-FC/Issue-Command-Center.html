@@ -636,7 +636,9 @@ function ingestWorkbook(wb,filename,sheetHint,defaultSource){
       return; /* don't add to RAW */
     }
 
-    let json=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+    /* Read with raw:true so Date cells come as real JS Date objects (cellDates:true works).
+       raw:false would convert everything to strings first, losing date type info. */
+    let json=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
     if(!json.length)return;
 
     /* Detect junk row-1 headers: keys are __EMPTY_n, duplicated suffixes (_1,_2),
@@ -652,15 +654,28 @@ function ingestWorkbook(wb,filename,sheetHint,defaultSource){
       const realHeaders=Object.values(json[0]).map(v=>(v+'').trim());
       /* Use those as keys, data starts at json[1] */
       json=json.slice(1)
-        .filter(r=>Object.values(r).some(v=>v&&(v+'').trim()))
+        .filter(r=>Object.values(r).some(v=>v!=null&&v!==''))
         .map(r=>{
           const vals=Object.values(r);
           const obj={};
-          realHeaders.forEach((h,i)=>{if(h)obj[h]=(vals[i]??'')+'';});
+          /* Preserve Date objects as-is; convert everything else to string */
+          realHeaders.forEach((h,i)=>{
+            if(h){const v=vals[i]??''; obj[h]=(v instanceof Date)?v:(''+v);}
+          });
           return obj;
         });
       if(!json.length)return;
     }
+
+    /* Normalise non-Date values to string so downstream code can safely call .trim() etc. */
+    json=json.map(row=>{
+      const out={};
+      Object.keys(row).forEach(k=>{
+        const v=row[k];
+        out[k]=(v instanceof Date)?v:(v==null?'':(''+v));
+      });
+      return out;
+    });
 
     const guess=/anchanto|oms|wms|integration/i.test((filename||'')+' '+sn)?'Anchanto':(defaultSource||'FC');
     /* For Appareal files, sheets named "Data" with "Category" column → FC */
@@ -669,6 +684,9 @@ function ingestWorkbook(wb,filename,sheetHint,defaultSource){
     /* DEBUG — remove after confirming mapping */
     console.log('[ICC] sheet:', key, '| source:', fcGuess, '| rows:', json.length);
     console.log('[ICC] headers:', Object.keys(json[0]||{}).filter(k=>!k.startsWith('__')));
+    /* Log date field value + type to diagnose parsing */
+    const dateKey=Object.keys(json[0]||{}).find(k=>/วันที่|date/i.test(k));
+    if(dateKey&&json[0]){const dv=json[0][dateKey];console.log('[ICC] date sample →',JSON.stringify(dv),'type:',typeof dv, dv instanceof Date?'(Date obj)':'');}
     console.log('[ICC] row1 sample:', JSON.stringify(json[0]).slice(0,300));
     json.forEach(row=>{row.__source=fcGuess;row.__sheet=key;});
     RAW=RAW.concat(json);
@@ -793,12 +811,17 @@ function bestCat(rawCat,title,row){
 /* dayfirst=true → interpret dd/mm/yyyy (Thai/UK convention)
    dayfirst=false → interpret mm/dd/yyyy (US/Excel SharePoint serialized) */
 function parseDate(s,dayfirst){
-  if(!s)return null;
-  /* SheetJS cellDates:true may give a real Date object — normalise to local midnight */
+  if(!s&&s!==0)return null;
+  /* SheetJS cellDates:true → real Date object, normalise UTC→local midnight */
   if(s instanceof Date){
     if(isNaN(s))return null;
-    /* UTC midnight from SheetJS → local date (strip time) */
     return new Date(s.getUTCFullYear(),s.getUTCMonth(),s.getUTCDate());
+  }
+  /* Excel serial number (raw:true on numeric date cells) e.g. 46777 = 5 May 2026 */
+  if(typeof s==='number'&&s>40000&&s<60000){
+    /* Excel epoch: 1899-12-30 + serial days (Windows mode, leap-year bug included) */
+    const d=new Date(Date.UTC(1899,11,30)+s*864e5);
+    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
   }
   s=(''+s).trim();
   /* ISO yyyy-mm-dd (unambiguous) */
