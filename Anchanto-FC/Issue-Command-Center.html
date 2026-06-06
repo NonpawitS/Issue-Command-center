@@ -97,6 +97,16 @@
   .sp-status{font-size:12px;margin-top:6px;min-height:16px}
   .sp-status.ok{color:var(--green)}.sp-status.err{color:var(--red)}.sp-status.loading{color:var(--muted)}
 
+  /* Admin PIN modal */
+  .pin-box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 32px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.15);text-align:center}
+  .pin-box h3{margin:0 0 6px;font-size:17px;font-weight:800;color:var(--accent)}
+  .pin-box p{margin:0 0 16px;color:var(--muted);font-size:13px}
+  .pin-input{font-size:22px;letter-spacing:8px;text-align:center;width:140px;padding:10px;border:2px solid var(--line);border-radius:10px;outline:none;font-weight:700}
+  .pin-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(204,0,0,.12)}
+  .pin-err{color:var(--red);font-size:12px;margin-top:8px;min-height:16px}
+  .admin-badge{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.5px}
+  .viewer-status{font-size:12px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:6px}
+
   /* section header bar */
   .section-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .section-header h2{margin:0;font-size:18px;font-weight:800;color:var(--accent)}
@@ -120,9 +130,19 @@
     <button data-scope="Anchanto">Anchanto-FC</button>
     <button data-scope="FC">FC Ops</button>
   </div>
-  <button class="btn-ghost" onclick="openSettings()">⚙ Settings</button>
-  <button class="btn-ghost" onclick="loadSample()">▣ Sample data</button>
-  <label class="btn btn-accent" style="cursor:pointer">↥ Load Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></label>
+  <!-- Admin-only controls (hidden in viewer mode) -->
+  <div id="adminControls" style="display:none;gap:6px;align-items:center">
+    <button class="btn-ghost" onclick="openSettings()">⚙ Settings</button>
+    <button class="btn-ghost" onclick="loadSample()">▣ Sample</button>
+    <label class="btn btn-ghost" style="cursor:pointer">↥ Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></label>
+    <span class="admin-badge">ADMIN</span>
+    <button class="btn-ghost" onclick="lockAdmin()" title="ออกจาก Admin mode" style="font-size:11px;padding:4px 8px">🔒 Lock</button>
+  </div>
+  <!-- Viewer mode controls -->
+  <div id="viewerControls" style="display:flex;gap:6px;align-items:center">
+    <span class="viewer-status">👁 Viewer mode</span>
+    <button class="btn-ghost" onclick="openPinModal()" style="font-size:12px;padding:5px 10px">🔑 Admin</button>
+  </div>
 </header>
 
 <nav class="tabs" id="tabs">
@@ -132,8 +152,8 @@
 </nav>
 
 <main>
-  <!-- SharePoint fetch panel — 2 URLs -->
-  <div class="sp-panel">
+  <!-- SharePoint fetch panel — Admin only / hidden for viewers -->
+  <div class="sp-panel" id="spAdminPanel" style="display:none">
     <h4>☁ SharePoint Auto-Load — Excel / CSV</h4>
     <div style="display:grid;gap:8px">
       <div class="sp-row">
@@ -149,8 +169,9 @@
         <button onclick="fetchBothSharePoint()" class="btn-accent">⟳ Fetch ทั้งคู่</button>
       </div>
     </div>
-    <div class="sp-status muted" id="spStatus">วาง URL ทั้งสองช่อง แล้วกด Fetch ทั้งคู่ — หรือ drag &amp; drop ไฟล์ลงด้านล่าง</div>
   </div>
+  <!-- Fetch status — visible to all -->
+  <div class="sp-status muted" id="spStatus" style="margin-bottom:10px;padding:4px 0"></div>
 
   <!-- EMPTY STATE -->
   <div id="emptyState" class="empty">
@@ -206,6 +227,21 @@
   </section>
 </main>
 
+<!-- ADMIN PIN MODAL -->
+<div class="modal" id="pinModal"><div class="pin-box">
+  <div style="font-size:28px;margin-bottom:8px">🔑</div>
+  <h3>Admin Access</h3>
+  <p>กรอก PIN เพื่อเข้าสู่ Admin mode<br><span style="font-size:11px">แก้ไข URL และ Settings ได้</span></p>
+  <input class="pin-input" id="pinInput" type="password" maxlength="8" placeholder="••••" autocomplete="off"
+    oninput="document.getElementById('pinErr').textContent=''"
+    onkeydown="if(event.key==='Enter')submitPin()">
+  <div style="margin-top:14px;display:flex;gap:8px;justify-content:center">
+    <button onclick="closeModal('pinModal')" style="min-width:80px">ยกเลิก</button>
+    <button class="btn-accent" onclick="submitPin()" style="min-width:80px">เข้าสู่ระบบ</button>
+  </div>
+  <div class="pin-err" id="pinErr"></div>
+</div></div>
+
 <!-- DETAIL MODAL -->
 <div class="modal" id="detailModal"><div class="box">
   <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="dmTitle" style="margin:0;font-size:16px;color:var(--accent)"></h2><button onclick="closeModal('detailModal')">✕</button></div>
@@ -245,6 +281,27 @@
     <small class="hint">Map your raw status words to the canonical pipeline stage.</small>
   </div>
 
+  <div class="card" style="margin-bottom:12px">
+    <h3>5 · Admin PIN</h3>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">PIN ปัจจุบัน (กรอกเพื่อยืนยัน)</div>
+        <input type="password" id="pinOld" maxlength="8" placeholder="PIN เดิม" style="width:120px">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">PIN ใหม่</div>
+        <input type="password" id="pinNew" maxlength="8" placeholder="PIN ใหม่" style="width:120px">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">ยืนยัน PIN ใหม่</div>
+        <input type="password" id="pinConfirm" maxlength="8" placeholder="ยืนยัน PIN" style="width:120px">
+      </div>
+      <button onclick="changePin()" style="margin-top:18px">เปลี่ยน PIN</button>
+    </div>
+    <div id="pinChangeMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+    <small class="hint" style="display:block;margin-top:4px">PIN ค่าเริ่มต้นคือ <b>6600</b> — เปลี่ยนทันทีหลัง deploy</small>
+  </div>
+
   <div style="display:flex;gap:8px;justify-content:flex-end">
     <button onclick="exportConfig()">⤓ Export config</button>
     <label class="btn" style="cursor:pointer">⤒ Import config<input type="file" accept=".json" hidden onchange="importConfig(this.files[0])"></label>
@@ -256,8 +313,66 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ============================ STATE ============================ */
+/* ============================ ADMIN AUTH ============================ */
 const LS_CONFIG='icc_config_v1';
+const LS_PIN='icc_admin_pin';
+const LS_ADMIN_SESSION='icc_admin_session';
+const DEFAULT_PIN='6600';
+
+function getPin(){return localStorage.getItem(LS_PIN)||DEFAULT_PIN;}
+function isAdmin(){return sessionStorage.getItem(LS_ADMIN_SESSION)==='1';}
+
+function applyAdminUI(){
+  const admin=isAdmin();
+  document.getElementById('adminControls').style.display=admin?'flex':'none';
+  document.getElementById('viewerControls').style.display=admin?'none':'flex';
+  document.getElementById('spAdminPanel').style.display=admin?'block':'none';
+}
+
+function openPinModal(){
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinErr').textContent='';
+  openModal('pinModal');
+  setTimeout(()=>document.getElementById('pinInput').focus(),120);
+}
+
+function submitPin(){
+  const v=document.getElementById('pinInput').value.trim();
+  if(v===getPin()){
+    sessionStorage.setItem(LS_ADMIN_SESSION,'1');
+    closeModal('pinModal');
+    applyAdminUI();
+    toast('เข้าสู่ Admin mode แล้ว');
+  } else {
+    document.getElementById('pinErr').textContent='PIN ไม่ถูกต้อง ลองใหม่อีกครั้ง';
+    document.getElementById('pinInput').value='';
+    document.getElementById('pinInput').focus();
+  }
+}
+
+function lockAdmin(){
+  sessionStorage.removeItem(LS_ADMIN_SESSION);
+  applyAdminUI();
+  toast('ออกจาก Admin mode แล้ว');
+}
+
+function changePin(){
+  const old=document.getElementById('pinOld').value.trim();
+  const nw=document.getElementById('pinNew').value.trim();
+  const cf=document.getElementById('pinConfirm').value.trim();
+  const msg=document.getElementById('pinChangeMsg');
+  if(old!==getPin()){msg.style.color='var(--red)';msg.textContent='PIN เดิมไม่ถูกต้อง';return;}
+  if(nw.length<4){msg.style.color='var(--red)';msg.textContent='PIN ใหม่ต้องมีอย่างน้อย 4 ตัว';return;}
+  if(nw!==cf){msg.style.color='var(--red)';msg.textContent='PIN ใหม่ไม่ตรงกัน';return;}
+  localStorage.setItem(LS_PIN,nw);
+  document.getElementById('pinOld').value='';
+  document.getElementById('pinNew').value='';
+  document.getElementById('pinConfirm').value='';
+  msg.style.color='var(--green)';msg.textContent='เปลี่ยน PIN สำเร็จ';
+  setTimeout(()=>{msg.textContent='';},3000);
+}
+
+/* ============================ STATE ============================ */
 let RAW=[];
 let CANCELLED_ORDERS=new Set(); // Order # from "list cancelled" sheet
 let ROWS=[];
@@ -320,6 +435,17 @@ const LS_SP_FC  ='icc_sp_url_fc';
   else if(isExample(a)){localStorage.removeItem(LS_SP_ANCH);}
   if(f&&!isExample(f))document.getElementById('spUrlFc').value=f;
   else if(isExample(f)){localStorage.removeItem(LS_SP_FC);}
+
+  /* Apply admin UI state immediately */
+  applyAdminUI();
+
+  /* Auto-fetch on page load if URLs are saved */
+  const hasUrl=(!isExample(a)&&a)||(!isExample(f)&&f);
+  if(hasUrl){
+    setSpStatus('⏳ กำลัง auto-load ข้อมูล…','loading');
+    /* small delay to let DOM render first */
+    setTimeout(()=>fetchBothSharePoint(),600);
+  }
 })();
 
 function saveSpUrls(){
@@ -449,7 +575,7 @@ const FIELD_SYNONYMS={
   rootcause:['ปัญหาที่พบ','root cause','cause','reason','finding']
 };
 
-document.getElementById('fileInput').addEventListener('change',e=>handleFiles(e.target.files));
+document.getElementById('fileInput')?.addEventListener('change',e=>handleFiles(e.target.files));
 ['dragover','dragenter'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.add('over');}));
 ['dragleave','drop'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.remove('over');}));
 document.body.addEventListener('drop',e=>{if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);});
@@ -831,7 +957,7 @@ function showDetail(i){
 }
 
 /* ============================ SETTINGS UI ============================ */
-function openSettings(){buildSettings();openModal('settingsModal');}
+function openSettings(){if(!isAdmin()){toast('กรุณาเข้าสู่ Admin mode ก่อน');return;}buildSettings();openModal('settingsModal');}
 function buildSettings(){
   document.getElementById('sourceList').innerHTML=pendingSources.length?pendingSources.map((s,i)=>
     `<div class="rulerow" style="grid-template-columns:1fr 160px"><div>${esc(s.label)}</div>
