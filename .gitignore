@@ -1,0 +1,8 @@
+# Excel data files — do not commit sensitive issue data
+*.xlsx
+*.xls
+*.csv
+
+# OS
+.DS_Store
+Thumbs.db

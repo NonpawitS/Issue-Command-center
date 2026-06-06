@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>6.6 Campaign — Issue Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6fa; --panel:#ffffff; --panel2:#f0f1f5; --line:#e2e5ea; --txt:#1a1d23;
+    --muted:#6b7280; --accent:#cc0000; --accent2:#e63333; --green:#16a34a; --amber:#d97706;
+    --red:#cc0000; --purple:#7c3aed; --cyan:#0891b2; --anch:#cc0000; --fc:#1d4ed8;
+    --shadow:0 1px 4px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans Thai",sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:#cc0000;border-bottom:3px solid #aa0000;position:sticky;top:0;z-index:30;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px;color:#fff}
+  header .badge{font-size:11px;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.4);padding:2px 8px;border-radius:999px}
+  header .spacer{flex:1}
+  button,.btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;transition:.15s}
+  button:hover,.btn:hover{border-color:var(--accent);background:#fff}
+  .btn-accent{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-accent:hover{background:#aa0000;border-color:#aa0000;color:#fff}
+  .btn-ghost{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff}
+  .btn-ghost:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5)}
+  nav.tabs{display:flex;gap:2px;padding:0 20px;background:#fff;border-bottom:2px solid var(--line);flex-wrap:wrap;box-shadow:var(--shadow)}
+  nav.tabs button{background:transparent;border:none;border-bottom:3px solid transparent;border-radius:0;padding:12px 16px;color:var(--muted);font-weight:600;margin-bottom:-2px}
+  nav.tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+  nav.tabs button:hover{color:var(--txt);background:var(--panel2)}
+  main{padding:18px 20px 60px}
+  .view{display:none}.view.active{display:block}
+  .grid{display:grid;gap:14px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .kpi .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .kpi .value{font-size:30px;font-weight:800;margin-top:4px;line-height:1;color:var(--accent)}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:6px}
+  .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(204,0,0,.1)}
+  .row2{grid-template-columns:1fr 1fr}
+  .row3{grid-template-columns:2fr 1fr}
+  @media(max-width:900px){.row2,.row3{grid-template-columns:1fr}}
+  .card h3{margin:0 0 12px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px}
+  canvas{max-height:280px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;user-select:none;position:sticky;top:0;background:#fff;font-weight:700}
+  th:hover{color:var(--accent)}
+  tbody tr:hover{background:#fff5f5;cursor:pointer}
+  .tablewrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  select,input[type=text]{background:#fff;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px}
+  select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(204,0,0,.1)}
+  input[type=text].search{min-width:220px}
+  .src-anch{background:rgba(204,0,0,.12);color:#cc0000;border:1px solid rgba(204,0,0,.3)}
+  .src-fc{background:rgba(29,78,216,.12);color:#1d4ed8;border:1px solid rgba(29,78,216,.3)}
+  .sev-Critical{background:rgba(204,0,0,.15);color:#cc0000;border:1px solid rgba(204,0,0,.3)}
+  .sev-High{background:rgba(217,119,6,.15);color:#92400e;border:1px solid rgba(217,119,6,.3)}
+  .sev-Medium{background:rgba(29,78,216,.12);color:#1d4ed8;border:1px solid rgba(29,78,216,.3)}
+  .sev-Low{background:rgba(107,114,128,.12);color:#4b5563;border:1px solid rgba(107,114,128,.3)}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:14px}
+  .drop{border:2px dashed var(--line);border-radius:16px;padding:42px 60px;transition:.15s;background:var(--panel)}
+  .drop.over{border-color:var(--accent);background:#fff5f5}
+  .muted{color:var(--muted)}
+  .bar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;background:var(--green)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal.open{display:flex}
+  .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+  .modal .box.wide{max-width:920px}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px}
+  .kv .k{color:var(--muted);font-weight:600}
+  textarea{width:100%;min-height:90px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace}
+  .rulerow{display:grid;grid-template-columns:200px 1fr 34px;gap:8px;margin-bottom:6px;align-items:start}
+  .tag{display:inline-block;background:rgba(204,0,0,.1);border:1px solid rgba(204,0,0,.2);border-radius:6px;padding:1px 6px;margin:2px 3px 0 0;font-size:11px;cursor:pointer;color:var(--accent)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .recur-item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--panel);box-shadow:var(--shadow)}
+  .recur-item .h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .count-badge{background:var(--red);color:#fff;border-radius:999px;padding:1px 9px;font-weight:800;font-size:12px}
+  a.link{color:var(--accent);cursor:pointer}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1d23;color:#fff;border:1px solid #333;padding:10px 16px;border-radius:10px;z-index:60;display:none;font-size:13px}
+  .src-toggle{display:flex;gap:4px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:3px}
+  .src-toggle button{border:none;background:transparent;padding:5px 10px;border-radius:6px;color:rgba(255,255,255,.8);font-weight:600}
+  .src-toggle button.on{background:#fff;color:var(--accent)}
+  .src-toggle button:hover:not(.on){background:rgba(255,255,255,.2);color:#fff}
+  small.hint{color:var(--muted);font-size:11px}
+
+  /* SharePoint panel */
+  .sp-panel{background:linear-gradient(135deg,#fff5f5,#fff);border:1px solid rgba(204,0,0,.2);border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .sp-panel h4{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:6px}
+  .sp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .sp-row input{flex:1;min-width:280px}
+  .sp-status{font-size:12px;margin-top:6px;min-height:16px}
+  .sp-status.ok{color:var(--green)}.sp-status.err{color:var(--red)}.sp-status.loading{color:var(--muted)}
+
+  /* section header bar */
+  .section-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .section-header h2{margin:0;font-size:18px;font-weight:800;color:var(--accent)}
+  .divider{flex:1;height:1px;background:var(--line)}
+
+  /* kpi accent bar */
+  .kpi{position:relative;overflow:hidden}
+  .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent)}
+  .kpi.kpi-green::before{background:var(--green)}
+  .kpi.kpi-blue::before{background:#1d4ed8}
+  .kpi.kpi-amber::before{background:var(--amber)}
+</style>
+</head>
+<body>
+<header>
+  <h1>⬢ 6.6 Campaign — Issue Command Center</h1>
+  <span class="badge" id="dataBadge">no data loaded</span>
+  <div class="spacer"></div>
+  <div class="src-toggle" id="scopeToggle" title="Filter whole dashboard by source">
+    <button data-scope="all" class="on">All</button>
+    <button data-scope="Anchanto">Anchanto-FC</button>
+    <button data-scope="FC">FC Ops</button>
+  </div>
+  <button class="btn-ghost" onclick="openSettings()">⚙ Settings</button>
+  <button class="btn-ghost" onclick="loadSample()">▣ Sample data</button>
+  <label class="btn btn-accent" style="cursor:pointer">↥ Load Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></label>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="exec" class="active">Executive Overview</button>
+  <button data-tab="issues">Issues Explorer</button>
+  <button data-tab="recur">Recurring &amp; Root Cause</button>
+</nav>
+
+<main>
+  <!-- SharePoint fetch panel — 2 URLs -->
+  <div class="sp-panel">
+    <h4>☁ SharePoint Auto-Load — Excel / CSV</h4>
+    <div style="display:grid;gap:8px">
+      <div class="sp-row">
+        <span style="min-width:110px;font-size:12px;font-weight:700;color:var(--anch)">⬤ Anchanto-FC</span>
+        <input type="text" id="spUrlAnch" placeholder="URL ไฟล์ Anchanto (.xlsx หรือ .csv) บน SharePoint" style="flex:1" />
+      </div>
+      <div class="sp-row">
+        <span style="min-width:110px;font-size:12px;font-weight:700;color:var(--fc)">⬤ FC Ops</span>
+        <input type="text" id="spUrlFc" placeholder="URL ไฟล์ Appareal/FC (.xlsx หรือ .csv) บน SharePoint" style="flex:1" />
+      </div>
+      <div class="sp-row" style="justify-content:flex-end">
+        <button onclick="saveSpUrls()" style="font-size:12px">💾 Save URLs</button>
+        <button onclick="fetchBothSharePoint()" class="btn-accent">⟳ Fetch ทั้งคู่</button>
+      </div>
+    </div>
+    <div class="sp-status muted" id="spStatus">วาง URL ทั้งสองช่อง แล้วกด Fetch ทั้งคู่ — หรือ drag &amp; drop ไฟล์ลงด้านล่าง</div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div id="emptyState" class="empty">
+    <div class="drop" id="dropZone">
+      <div style="font-size:34px">📥</div>
+      <h2 style="margin:10px 0 4px;color:var(--txt)">Drop the 6.6 issue Excel files here</h2>
+      <p class="muted" style="max-width:440px">Load <b>Issuse 6.6 Anchanto.xlsx</b> and <b>Issuse 6.6 Appareal.xlsx</b>.
+      Everything runs in your browser — nothing is uploaded anywhere. You'll tag each file as Anchanto-FC or FC Ops, then map columns once.</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:6px">
+        <label class="btn btn-accent" style="cursor:pointer">Choose files<input type="file" accept=".xlsx,.xls,.csv" multiple hidden onchange="handleFiles(this.files)"></label>
+        <button onclick="loadSample()">Try with sample data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXEC -->
+  <section id="view-exec" class="view active">
+    <div class="grid kpis" id="kpiRow"></div>
+    <div class="grid row2" style="margin-top:14px">
+      <div class="card"><h3>Issues by Category</h3><canvas id="chCat"></canvas></div>
+      <div class="card"><h3>Status Pipeline</h3><canvas id="chStatus"></canvas></div>
+    </div>
+    <div class="grid row3" style="margin-top:14px">
+      <div class="card"><h3>Daily Trend (reported vs closed)</h3><canvas id="chTrend"></canvas></div>
+      <div class="card"><h3>Anchanto-FC vs FC Ops</h3><canvas id="chSource"></canvas>
+        <div class="legend"><span><i style="background:var(--anch)"></i>Anchanto-FC</span><span><i style="background:var(--fc)"></i>FC Ops</span></div></div>
+    </div>
+    <div class="grid row2" style="margin-top:14px">
+      <div class="card"><h3>Severity Mix</h3><canvas id="chSev"></canvas></div>
+      <div class="card"><h3>Top Problem Types</h3><canvas id="chVendor"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ISSUES -->
+  <section id="view-issues" class="view">
+    <div class="filters" id="issueFilters"></div>
+    <div class="tablewrap"><table id="issueTable">
+      <thead><tr>
+        <th data-sort="id">ID</th><th data-sort="title">Issue</th><th data-sort="source">Source</th>
+        <th data-sort="plant">Plant</th><th data-sort="category">Category</th><th data-sort="severity">Severity</th>
+        <th data-sort="status">Status</th><th data-sort="weborder">WebOrder</th><th data-sort="mkpStatus">MKP Status</th><th data-sort="omsStatus">OMS Status</th><th data-sort="wmsStatus">WMS Status</th><th data-sort="action">Action</th><th data-sort="ageDays">Age</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <p class="muted" id="issueCount" style="margin-top:8px"></p>
+  </section>
+
+  <!-- RECUR -->
+  <section id="view-recur" class="view">
+    <div class="grid row2">
+      <div class="card"><h3>Recurring Issue Clusters (≥2 similar)</h3><div id="recurList"></div></div>
+      <div class="card"><h3>Top Root Causes</h3><div id="rootList"></div></div>
+    </div>
+  </section>
+</main>
+
+<!-- DETAIL MODAL -->
+<div class="modal" id="detailModal"><div class="box">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="dmTitle" style="margin:0;font-size:16px;color:var(--accent)"></h2><button onclick="closeModal('detailModal')">✕</button></div>
+  <div class="kv" id="dmBody" style="margin-top:12px"></div>
+</div></div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal" id="settingsModal"><div class="box wide">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2 style="margin:0;font-size:16px;color:var(--accent)">⚙ Settings — Mapping &amp; Classification</h2>
+    <button onclick="closeModal('settingsModal')">✕</button>
+  </div>
+  <p class="muted" style="margin:6px 0 14px">These rules are owned by Operations. Edit, then <b>Apply</b>. Saved in this browser. Use Export to share the config file with the team.</p>
+
+  <div class="card" style="margin-bottom:12px">
+    <h3>1 · Loaded sources</h3>
+    <div id="sourceList"></div>
+    <small class="hint">Each loaded file/sheet is tagged Anchanto-FC or FC Ops. Change the tag and re-apply if needed.</small>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <h3>2 · Column mapping</h3>
+    <div class="kv" id="mapGrid"></div>
+    <small class="hint">Pick which spreadsheet column feeds each field. Detected automatically from headers; override if wrong.</small>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <h3>3 · Category rules (first match wins)</h3>
+    <div id="ruleEditor"></div>
+    <button onclick="addRule()" style="margin-top:6px">+ Add category</button>
+    <small class="hint" style="display:block;margin-top:6px">Comma-separated keywords, matched against issue text (title + raw category + sub-system + root cause). Not case-sensitive.</small>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <h3>4 · Status pipeline mapping</h3>
+    <div id="statusEditor"></div>
+    <small class="hint">Map your raw status words to the canonical pipeline stage.</small>
+  </div>
+
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="exportConfig()">⤓ Export config</button>
+    <label class="btn" style="cursor:pointer">⤒ Import config<input type="file" accept=".json" hidden onchange="importConfig(this.files[0])"></label>
+    <button onclick="resetConfig()">↺ Reset defaults</button>
+    <button class="btn-accent" onclick="applySettings()">✓ Apply</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ STATE ============================ */
+const LS_CONFIG='icc_config_v1';
+let RAW=[];
+let CANCELLED_ORDERS=new Set(); // Order # from "list cancelled" sheet
+let ROWS=[];
+let HEADERS=[];
+let CHARTS={};
+let SCOPE='all';
+let sortKey='ageDays', sortDir=-1;
+let pendingSources=[];
+
+const DEFAULT_CONFIG = {
+  fieldMap:{},
+  classRules:[
+    /* --- FC Ops (Appareal) real category values from "Category" column --- */
+    {category:'Order Create / Runwave', keywords:['order create/runwave','order create','runwave','run wave','allocat','reserved allocated']},
+    {category:'Pick / Pack', keywords:['pack by zone','packbyzone','packconfirm','qc/packbyzone','pick','packing','wave','batch','tote','carton']},
+    {category:'Shipping / AWB', keywords:['awb','manifest','label','dispatch','carrier','tracking','ship','weight']},
+    {category:'QC / Weight', keywords:['qc','weight','quality']},
+    {category:'Cancel / Return', keywords:['cancel','return','void']},
+    /* --- Anchanto / generic --- */
+    {category:'Integration / Interface', keywords:['integration','interface','api','sync','mapping','oms-wms','feed','webhook','idoc','sap','middleware','updatestatus','conflict']},
+    {category:'OMS / Order', keywords:['oms','ordering','allocation','split','sla','release','rfp','mkp']},
+    {category:'WMS / Warehouse', keywords:['wms','warehouse','bin','location','putaway','grn','inbound','outbound']},
+    {category:'Inventory / Stock', keywords:['inventory','stock','quantity','qty','mismatch','count','adjust','reservation']},
+    {category:'Master Data', keywords:['master data','sku','product','barcode','uom','catalog','attribute','seller']},
+    {category:'Performance / System', keywords:['slow','performance','timeout','lag','crash','down','latency','load','freeze']},
+    {category:'Configuration', keywords:['config','setting','parameter','rule setup','workflow setup']},
+    {category:'Process / Manual', keywords:['process','manual','training','sop','user error','procedure','act to fix']}
+  ],
+  statusMap:[
+    /* FC Ops status words */
+    {canonical:'Closed',   keywords:['complete','completed','fixed','resolved','done','closed','success']},
+    {canonical:'Fix In Progress', keywords:['on-process','on process','in progress','fixing','development','dev','wip','working','act to fix']},
+    {canonical:'Investigating', keywords:['investigat','analysis','triage','reviewing','pending vendor','assigned','in review']},
+    {canonical:'UAT',      keywords:['uat','testing','verify','validation','qa']},
+    {canonical:'Deployed', keywords:['deployed','released','prod','rolled out','live']},
+    {canonical:'On Hold',  keywords:['hold','blocked','waiting','parked','defer','pending']},
+    {canonical:'New',      keywords:['new','open','reported','raised','logged']}
+  ],
+  vendorOwnedCategories:['Integration / Interface','OMS / Order','WMS / Warehouse','Performance / System','Configuration']
+};
+const PIPELINE=['New','Investigating','Fix In Progress','UAT','Deployed','Closed','On Hold'];
+const SEVS=['Critical','High','Medium','Low'];
+let CONFIG=loadConfig();
+
+/* Register datalabels globally */
+Chart.register(ChartDataLabels);
+
+function loadConfig(){try{const c=JSON.parse(localStorage.getItem(LS_CONFIG));return c&&c.classRules?c:structuredClone(DEFAULT_CONFIG);}catch(e){return structuredClone(DEFAULT_CONFIG);}}
+function saveConfig(){localStorage.setItem(LS_CONFIG,JSON.stringify(CONFIG));}
+
+/* ============================ SHAREPOINT FETCH (2 URLs) ============================ */
+const LS_SP_ANCH='icc_sp_url_anch';
+const LS_SP_FC  ='icc_sp_url_fc';
+
+(function initSpUrls(){
+  const a=localStorage.getItem(LS_SP_ANCH);const f=localStorage.getItem(LS_SP_FC);
+  /* Clear if it points to Example Schema file */
+  const isExample=v=>v&&/example schema/i.test(v);
+  if(a&&!isExample(a))document.getElementById('spUrlAnch').value=a;
+  else if(isExample(a)){localStorage.removeItem(LS_SP_ANCH);}
+  if(f&&!isExample(f))document.getElementById('spUrlFc').value=f;
+  else if(isExample(f)){localStorage.removeItem(LS_SP_FC);}
+})();
+
+function saveSpUrls(){
+  const a=document.getElementById('spUrlAnch').value.trim();
+  const f=document.getElementById('spUrlFc').value.trim();
+  if(a)localStorage.setItem(LS_SP_ANCH,a);
+  if(f)localStorage.setItem(LS_SP_FC,f);
+  toast('URLs บันทึกแล้ว');
+}
+
+async function fetchBothSharePoint(){
+  const urlA=document.getElementById('spUrlAnch').value.trim();
+  const urlF=document.getElementById('spUrlFc').value.trim();
+  if(!urlA&&!urlF){setSpStatus('กรุณาใส่ URL อย่างน้อย 1 ช่อง','err');return;}
+  RAW=[];pendingSources=[];CANCELLED_ORDERS=new Set();
+  /* Reset field mapping so autoMap re-detects from fresh headers */
+  CONFIG.fieldMap={};saveConfig();
+  setSpStatus('⏳ กำลัง fetch…','loading');
+  const tasks=[];
+  if(urlA)tasks.push(fetchOneFile(urlA,'Anchanto'));
+  if(urlF)tasks.push(fetchOneFile(urlF,'FC'));
+  const results=await Promise.allSettled(tasks);
+  const errs=results.filter(r=>r.status==='rejected').map(r=>r.reason.message);
+  if(errs.length&&RAW.length===0){setSpStatus('✗ '+errs.join(' | '),'err');return;}
+  autoMap();enrichAndRender();
+  const ok=results.filter(r=>r.status==='fulfilled').length;
+  const ts=new Date().toLocaleTimeString('th-TH');
+  setSpStatus(`✓ โหลดสำเร็จ ${ok}/${tasks.length} ไฟล์ · ${RAW.length} rows · ${ts}`+(errs.length?' ⚠ '+errs.join('; '):''),'ok');
+  toast('SharePoint โหลดสำเร็จ '+RAW.length+' rows');
+}
+
+async function fetchOneFile(url,source){
+  const res=await fetch(url,{mode:'cors',credentials:'include'});
+  if(!res.ok)throw new Error(source+': HTTP '+res.status);
+  const buf=await res.arrayBuffer();
+  /* Try binary (xlsx) first; falls back cleanly for csv too */
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  ingestWorkbook(wb,source==='Anchanto'?'Anchanto-FC SharePoint':'FC Ops SharePoint','',source);
+}
+
+function setSpStatus(msg,cls){
+  const el=document.getElementById('spStatus');
+  el.textContent=msg;
+  el.className='sp-status '+(cls||'muted');
+}
+
+/* Smart header detection: some real files have label junk in row 1 and real headers in row 2.
+   We read with header:1 (row1 as header), check if the first row's values look like real data
+   rows (i.e. most cells are non-empty meaningful strings). If row 1 headers are mostly garbage
+   (empty or look like merged-cell artefacts), we re-read with header:2 (skip row 1). */
+function ingestWorkbook(wb,filename,sheetHint,defaultSource){
+  const SKIP_SHEETS=/^(sheet\d*|pv|sheet2)$/i;
+  wb.SheetNames.forEach(sn=>{
+    const ws=wb.Sheets[sn];
+    if(SKIP_SHEETS.test(sn.trim()))return;
+
+    /* Special: "list cancelled" — extract Order # into CANCELLED_ORDERS set, then skip */
+    if(/list cancelled/i.test(sn.trim())){
+      /* Headers are in row 3 (index 2 of array read), data from row 4 */
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,header:1});
+      /* Find the row that contains "Order #" */
+      let hdrIdx=raw.findIndex(r=>r.some(v=>(v+'').trim()==='Order #'));
+      if(hdrIdx>=0){
+        const headers=raw[hdrIdx].map(v=>(v+'').trim());
+        const orderCol=headers.indexOf('Order #');
+        raw.slice(hdrIdx+1).forEach(r=>{
+          const o=(r[orderCol]||'').toString().trim();
+          if(o)CANCELLED_ORDERS.add(o);
+        });
+        console.log('[ICC] Cancelled orders loaded:',CANCELLED_ORDERS.size);
+      }
+      return; /* don't add to RAW */
+    }
+
+    let json=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+    if(!json.length)return;
+
+    /* Detect junk row-1 headers: keys are __EMPTY_n, duplicated suffixes (_1,_2),
+       or look like merged-cell copy labels (any language) */
+    const keys=Object.keys(json[0]).filter(k=>!k.startsWith('__'));
+    const allKeys=Object.keys(json[0]);
+    const emptyCount=allKeys.filter(k=>k.startsWith('__EMPTY')).length;
+    const dupSuffix=keys.filter(k=>/_\d+$/.test(k)).length;
+    const useRow2=(emptyCount+dupSuffix) > allKeys.length * 0.35;
+
+    if(useRow2){
+      /* Row 1 of json = row 2 of Excel = real headers */
+      const realHeaders=Object.values(json[0]).map(v=>(v+'').trim());
+      /* Use those as keys, data starts at json[1] */
+      json=json.slice(1)
+        .filter(r=>Object.values(r).some(v=>v&&(v+'').trim()))
+        .map(r=>{
+          const vals=Object.values(r);
+          const obj={};
+          realHeaders.forEach((h,i)=>{if(h)obj[h]=(vals[i]??'')+'';});
+          return obj;
+        });
+      if(!json.length)return;
+    }
+
+    const guess=/anchanto|oms|wms|integration/i.test((filename||'')+' '+sn)?'Anchanto':(defaultSource||'FC');
+    /* For Appareal files, sheets named "Data" with "Category" column → FC */
+    const fcGuess=/apparel|appareal|fc.?ops|fc campaign/i.test(filename||'')?'FC':guess;
+    const key=(filename||'file')+' › '+sn;
+    /* DEBUG — remove after confirming mapping */
+    console.log('[ICC] sheet:', key, '| source:', fcGuess, '| rows:', json.length);
+    console.log('[ICC] headers:', Object.keys(json[0]||{}).filter(k=>!k.startsWith('__')));
+    console.log('[ICC] row1 sample:', JSON.stringify(json[0]).slice(0,300));
+    json.forEach(row=>{row.__source=fcGuess;row.__sheet=key;});
+    RAW=RAW.concat(json);
+    if(!pendingSources.find(p=>p.key===key))pendingSources.push({key,label:key,type:fcGuess});
+  });
+}
+
+/* ============================ INGEST ============================ */
+const FIELD_SYNONYMS={
+  /* Anchanto real headers (from console): Subject: LogNo:, Data Issue, Details, วันที่ (วัน/เดือน/ปี), ปัญหาที่พบ, Remark, Status Update Fixed */
+  id:      ['subject: logno:','logno:','logno','id','no','no.','issue id','ticket','ref','reference','case'],
+  title:   ['details','detail','data issue','ปัญหาที่พบ','issue','description','problem','summary','symptom'],
+  date:    ['วันที่ (วัน/เดือน/ปี)','วันที่','date reported','date','reported','created','open date'],
+  category:['category','type','module','area','group'],
+  subsystem:['plant','oms statu','wms status','system','component'],
+  vendor:  ['vendor','supplier','seller','third party'],
+  severity:['severity','priority','impact','criticality'],
+  status:  ['status update fixed','status','state','action','สถานะ'],
+  owner:   ['remark','ปัญหาที่พบ','owner','assignee','pic','contact'],
+  rootcause:['ปัญหาที่พบ','root cause','cause','reason','finding']
+};
+
+document.getElementById('fileInput').addEventListener('change',e=>handleFiles(e.target.files));
+['dragover','dragenter'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.remove('over');}));
+document.body.addEventListener('drop',e=>{if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);});
+
+function handleFiles(files){
+  let done=0; const all=[...files];
+  all.forEach(file=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
+      /* Guess source from filename: Appareal/Apparel → FC, otherwise Anchanto */
+      const defSrc=/apparel|appareal/i.test(file.name)?'FC':'Anchanto';
+      ingestWorkbook(wb,file.name,'',defSrc);
+      if(++done===all.length){autoMap();enrichAndRender();toast('Loaded '+RAW.length+' rows. Check Settings to confirm tagging & mapping.');}
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function autoMap(){
+  HEADERS=[...new Set(RAW.flatMap(r=>Object.keys(r)).filter(h=>!h.startsWith('__')))];
+  const norm=s=>(s||'').toLowerCase().trim();
+  for(const field in FIELD_SYNONYMS){
+    if(CONFIG.fieldMap[field] && HEADERS.includes(CONFIG.fieldMap[field]))continue;
+    let best=null;
+    /* Exact match first */
+    for(const h of HEADERS){const hn=norm(h);
+      if(FIELD_SYNONYMS[field].some(s=>hn===norm(s))){best=h;break;}}
+    /* Substring match */
+    if(!best)for(const h of HEADERS){const hn=norm(h);
+      if(FIELD_SYNONYMS[field].some(s=>s&&hn.includes(norm(s)))){best=h;break;}}
+    /* Reverse: synonym contains header (for short headers like "date") */
+    if(!best)for(const h of HEADERS){const hn=norm(h);if(hn.length<3)continue;
+      if(FIELD_SYNONYMS[field].some(s=>s&&norm(s).includes(hn))){best=h;break;}}
+    if(best)CONFIG.fieldMap[field]=best;
+  }
+  saveConfig();
+}
+
+/* ============================ ENRICH ============================ */
+function val(row,field){const h=CONFIG.fieldMap[field];return h?(row[h]??'').toString().trim():'';}
+function normSev(s){s=(s||'').toLowerCase();
+  if(/crit|p1|urgent|blocker|highest|sev ?1/.test(s))return'Critical';
+  if(/high|p2|major|sev ?2/.test(s))return'High';
+  if(/med|p3|moderate|normal|sev ?3/.test(s))return'Medium';
+  if(/low|p4|minor|trivial/.test(s))return'Low';
+  return s?'Medium':'Medium';}
+function classify(text){text=text.toLowerCase();
+  for(const r of CONFIG.classRules){if(r.keywords.some(k=>k&&text.includes(k.toLowerCase())))return r.category;}
+  return'Uncategorized';}
+function normStatus(s){s=(s||'').toLowerCase();
+  for(const m of CONFIG.statusMap){if(m.keywords.some(k=>k&&s.includes(k.toLowerCase())))return m.canonical;}
+  return'New';}
+const STOP=new Set('the a an and or of to in on for with is are was not no issue problem error when after about from will need cannot unable cant doesnt does system user'.split(' '));
+function signature(title,cat){
+  const words=(title||'').toLowerCase().replace(/[^a-z฀-๿ ]/g,' ').split(/\s+/)
+    .filter(w=>w.length>3&&!STOP.has(w));
+  const top=[...new Set(words)].sort().slice(0,4).join('-');
+  return cat+'|'+(top||'misc');}
+
+function enrich(){
+  const today=new Date();
+  ROWS=RAW.map((row,i)=>{
+    const title=val(row,'title')||val(row,'subsystem')||'(no description)';
+    const cat=CONFIG.fieldMap.category&&val(row,'category')?bestCat(val(row,'category'),title,row):classify([title,val(row,'category'),val(row,'subsystem'),val(row,'rootcause')].join(' '));
+    const status=normStatus(val(row,'status'));
+    const sev=normSev(val(row,'severity'));
+    let d=parseDate(val(row,'date'));
+    const vendor=val(row,'vendor');
+    const isVendor=!!vendor || (!CONFIG.fieldMap.vendor && CONFIG.vendorOwnedCategories.includes(cat));
+    const ageDays=d?Math.max(0,Math.round((today-d)/864e5)):'';
+    /* Plant: FC Ops file has explicit Plant column; Anchanto-FC is always 1005 */
+    const plant=row.__source==='Anchanto'?'1005':((row['Plant']||'').toString().trim());
+    const obj={
+      _i:i, id:val(row,'id')||('#'+(i+1)), title, source:row.__source, sheet:row.__sheet,
+      category:cat, severity:sev, status, vendor, owner:val(row,'owner'),
+      rootcause:val(row,'rootcause'), date:d, ageDays, plant,
+      isOpen:status!=='Closed', isVendor, sig:signature(title,cat),
+      weborder:(row['WebOrder']||'').toString().trim(),
+      mkpStatus:(row['MKP status']||'').toString().trim(),
+      omsStatus:(row['OMS statu']||'').toString().trim(),
+      wmsStatus:(row['WMS status']||'').toString().trim(),
+      action:(row['Action']||'').toString().trim(),
+      raw:row
+    };
+    obj.isCancelled=!!(obj.weborder && CANCELLED_ORDERS.has(obj.weborder));
+    return obj;
+  });
+}
+function bestCat(rawCat,title,row){
+  const viaRule=classify([title,rawCat,val(row,'subsystem'),val(row,'rootcause')].join(' '));
+  return viaRule!=='Uncategorized'?viaRule:(rawCat||'Uncategorized');
+}
+function parseDate(s){if(!s)return null;if(s instanceof Date)return isNaN(s)?null:s;
+  s=(''+s).trim();
+  /* ISO yyyy-mm-dd */
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){const d=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(d)?null:d;}
+  /* Excel serialized short date: m/d/yy or m/d/yyyy (US locale from SharePoint) */
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
+    /* Heuristic: if first part ≤12 AND second part >12 → definitely dd/mm; else assume m/d (US) */
+    let mo=+a,dy=+b;
+    if(dy>12&&mo<=12){/* already m/d */}
+    else if(mo>12&&dy<=12){mo=+b;dy=+a;}/* swap: was dd/mm */
+    /* else ambiguous — keep as m/d (matches Excel US output) */
+    const d=new Date(+y,mo-1,dy);return isNaN(d)?null:d;}
+  /* dd/mm/yyyy or dd-mm-yyyy */
+  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
+    const d=new Date(+y,+b-1,+a);return isNaN(d)?null:d;}
+  const d=new Date(s);return isNaN(d)?null:d;}
+
+/* ============================ RENDER ============================ */
+function scoped(){return SCOPE==='all'?ROWS:ROWS.filter(r=>r.source===SCOPE);}
+
+function enrichAndRender(){
+  if(!RAW.length)return;
+  enrich();
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('dataBadge').textContent=ROWS.length+' issues · '+new Set(ROWS.map(r=>r.sheet)).size+' sheet(s)';
+  renderExec();renderIssues();renderRecur();
+}
+
+function card(label,value,sub,scopeFilter,extra){
+  return `<div class="card kpi ${scopeFilter?'click':''} ${extra||''}" ${scopeFilter?`onclick="quickFilter('${scopeFilter}')"`:''}>
+    <div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub||''}</div></div>`;
+}
+function renderExec(){
+  const d=scoped();
+  const open=d.filter(r=>r.isOpen).length;
+  const vendor=d.filter(r=>r.isVendor).length;
+  const critOpen=d.filter(r=>r.isOpen&&r.severity==='Critical').length;
+  const ages=d.filter(r=>r.isOpen&&r.ageDays!=='').map(r=>r.ageDays);
+  const avgAge=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):'—';
+  const recur=clusters(d).length;
+  document.getElementById('kpiRow').innerHTML=
+    card('Total Issues',d.length,'across all sources',null,'')+
+    card('Open',open,pct(open,d.length)+' of total','status:__open','')+
+    card('Closed',d.length-open,pct(d.length-open,d.length)+' resolved','status:Closed','kpi-green')+
+    card('Vendor-Related',vendor,pct(vendor,d.length)+' need vendor','vendor:__yes','kpi-amber')+
+    card('Critical Open',critOpen,'highest priority','sev:Critical','')+
+    card('Cancelled Orders',d.filter(r=>r.isCancelled).length,'matched list cancelled',null,'')+
+    card('Recurring Patterns',recur,'clusters ≥2',null,'')+
+    card('Avg Open Age',avgAge+(avgAge==='—'?'':' d'),'days unresolved',null,'kpi-amber');
+
+  /* Bar: Issues by Category — horizontal, data labels outside */
+  const byCat=countBy(d,'category');
+  const catLabels=Object.keys(byCat);const catVals=Object.values(byCat);
+  makeBarH('chCat',catLabels,catVals,['#cc0000'],true);
+
+  /* Bar: Status Pipeline */
+  const statusColors=['#6b7280','#0891b2','#7c3aed','#d97706','#1d4ed8','#16a34a','#ef4444'];
+  const byStatus=PIPELINE.map(s=>d.filter(r=>r.status===s).length);
+  makeBarH('chStatus',PIPELINE,byStatus,statusColors,true);
+
+  trendChart(d);
+
+  /* Doughnut: source split */
+  const bySrc={Anchanto:d.filter(r=>r.source==='Anchanto').length,FC:d.filter(r=>r.source==='FC').length};
+  makeDoughnut('chSource',['Anchanto-FC','FC Ops'],[bySrc.Anchanto,bySrc.FC],['#cc0000','#1d4ed8']);
+
+  /* Doughnut: severity */
+  makeDoughnut('chSev',SEVS,SEVS.map(s=>d.filter(r=>r.severity===s).length),['#cc0000','#d97706','#1d4ed8','#9ca3af']);
+
+  /* Bar: top problem types — try ปัญหาที่พบ column directly, fallback to category */
+  const PROB_COL='ปัญหาที่พบ';
+  const probMap={};
+  d.forEach(r=>{
+    /* Look for the column directly in raw row */
+    const raw=(r.raw&&r.raw[PROB_COL]||r.owner||'').toString().trim();
+    const text=raw||r.category;
+    if(!text||text==='Uncategorized')return;
+    text.split(/[\n;]/).map(x=>x.trim()).filter(x=>x.length>2).forEach(p=>{
+      const k=p.slice(0,55);probMap[k]=(probMap[k]||0)+1;
+    });
+  });
+  const pTop=Object.entries(probMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(pTop.length)makeBarH('chVendor',pTop.map(x=>x[0]),pTop.map(x=>x[1]),['#7c3aed'],false);
+  else{destroy('chVendor');document.getElementById('chVendor').closest('.card').querySelector('h3').textContent='Top Problem Types (no data yet)';}
+}
+
+/* ---- Chart builders ---- */
+function baseScales(){return{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#e2e5ea'}},y:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#e2e5ea'}}};}
+
+function makeBarH(id,labels,data,colors,withDrill){
+  destroy(id);
+  const ctx=document.getElementById(id);
+  const isHoriz=labels.length>4;
+  CHARTS[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:Array.isArray(colors)&&colors.length===data.length?colors:labels.map((_,i)=>Array.isArray(colors)?colors[i%colors.length]:colors),borderWidth:0,borderRadius:4}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      indexAxis:isHoriz?'y':'x',
+      plugins:{
+        legend:{display:false},
+        datalabels:{
+          anchor:'end',align:'start',
+          clamp:true,
+          color:(ctx)=>{
+            /* white if bar is long enough, dark otherwise */
+            const v=ctx.dataset.data[ctx.dataIndex];
+            const max=Math.max(...ctx.dataset.data);
+            return v/max>0.25?'#ffffff':'#1a1d23';
+          },
+          font:{size:11,weight:'700'},
+          formatter:v=>v>0?v:''
+        }
+      },
+      scales:isHoriz?{
+        x:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#e2e5ea'}},
+        y:{ticks:{color:'#1a1d23',font:{size:11}},grid:{display:false}}
+      }:baseScales(),
+      onClick:withDrill?(e,el)=>{if(el.length)drillFromChart(id,labels[el[0].index]);}:undefined
+    }
+  });
+}
+
+function makeDoughnut(id,labels,data,colors){
+  destroy(id);
+  const ctx=document.getElementById(id);
+  CHARTS[id]=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#ffffff'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      cutout:'55%',
+      plugins:{
+        legend:{display:true,position:'bottom',labels:{color:'#6b7280',boxWidth:12,font:{size:11}}},
+        datalabels:{
+          color:'#fff',font:{size:11,weight:'700'},
+          formatter:(v,ctx)=>{
+            const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+            if(!total||!v)return'';
+            return v+'\n('+Math.round(v/total*100)+'%)';
+          }
+        }
+      },
+      onClick:(e,el)=>{if(el.length)drillFromChart(id,labels[el[0].index]);}
+    }
+  });
+}
+
+function trendChart(d){
+  const byDay={};
+  d.forEach(r=>{if(r.date){const k=r.date.toISOString().slice(0,10);byDay[k]=byDay[k]||{r:0,c:0};byDay[k].r++;if(!r.isOpen)byDay[k].c++;}});
+  const days=Object.keys(byDay).sort();
+  destroy('chTrend');
+  const ctx=document.getElementById('chTrend');
+  CHARTS['chTrend']=new Chart(ctx,{type:'line',
+    data:{labels:days,datasets:[
+      {label:'Reported',data:days.map(k=>byDay[k].r),borderColor:'#cc0000',backgroundColor:'rgba(204,0,0,.08)',fill:true,tension:.3,pointBackgroundColor:'#cc0000'},
+      {label:'Closed',data:days.map(k=>byDay[k].c),borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.08)',fill:true,tension:.3,pointBackgroundColor:'#16a34a'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,labels:{color:'#6b7280',boxWidth:12,font:{size:11}}},
+        datalabels:{
+          display:ctx=>{return ctx.dataset.data[ctx.dataIndex]>0;},
+          anchor:'top',align:'top',offset:2,
+          color:'#6b7280',font:{size:10,weight:'700'},
+          formatter:v=>v>0?v:''
+        }
+      },
+      scales:baseScales()
+    }
+  });
+}
+
+function destroy(id){if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}}
+
+/* ---- Issues table ---- */
+let issueFilter={source:'',category:'',status:'',severity:'',vendor:'',plant:'',q:''};
+function renderIssues(){
+  const f=issueFilter;
+  const cats=[...new Set(ROWS.map(r=>r.category))].sort();
+  const vends=[...new Set(ROWS.map(r=>r.vendor).filter(Boolean))].sort();
+  const plants=[...new Set(ROWS.map(r=>r.plant).filter(Boolean))].sort();
+  document.getElementById('issueFilters').innerHTML=
+    sel('category','Category',cats,f.category)+
+    sel('status','Status',PIPELINE,f.status)+
+    sel('severity','Severity',SEVS,f.severity)+
+    (plants.length>1?sel('plant','Plant',plants,f.plant):'')+
+    `<input class="search" id="fq" type="text" placeholder="Search text…" value="${f.q}">`+
+    `<button onclick="clearFilters()">Clear</button>`;
+  document.getElementById('fq').oninput=e=>{issueFilter.q=e.target.value;drawTable();};
+  ['category','status','severity','plant'].forEach(k=>{
+    const el=document.getElementById('flt_'+k);if(el)el.onchange=e=>{issueFilter[k]=e.target.value;drawTable();};});
+  drawTable();
+}
+function sel(k,label,opts,cur){return `<label>${label}: <select id="flt_${k}"><option value="">All</option>${opts.map(o=>`<option ${o===cur?'selected':''}>${o}</option>`).join('')}</select></label>`;}
+function rowsFiltered(){
+  let d=scoped();const f=issueFilter;
+  if(f.category)d=d.filter(r=>r.category===f.category);
+  if(f.status)d=d.filter(r=>r.status===f.status);
+  if(f.severity)d=d.filter(r=>r.severity===f.severity);
+  if(f.vendor)d=d.filter(r=>r.vendor===f.vendor);
+  if(f.plant)d=d.filter(r=>r.plant===f.plant);
+  if(f.q){const q=f.q.toLowerCase();d=d.filter(r=>(r.title+r.id+r.rootcause+r.owner).toLowerCase().includes(q));}
+  d=d.slice().sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(x===''||x==null)x=sortDir>0?Infinity:-Infinity;if(y===''||y==null)y=sortDir>0?Infinity:-Infinity;return (x>y?1:x<y?-1:0)*sortDir;});
+  return d;
+}
+function drawTable(){
+  const d=rowsFiltered();
+  const tb=document.querySelector('#issueTable tbody');
+  tb.innerHTML=d.slice(0,500).map(r=>`<tr onclick="showDetail(${r._i})">
+    <td>${esc(r.id)}</td><td>${esc(r.title).slice(0,90)}</td>
+    <td><span class="pill ${r.source==='Anchanto'?'src-anch':'src-fc'}">${r.source==='Anchanto'?'Anchanto':'FC'}</span></td>
+    <td>${r.plant?`<span class="pill" style="background:rgba(107,114,128,.12);color:#374151;border:1px solid rgba(107,114,128,.3)">${esc(r.plant)}</span>`:'—'}</td>
+    <td>${esc(r.category)}</td><td><span class="pill sev-${r.severity}">${r.severity}</span></td>
+    <td>${esc(r.status)}</td>
+    <td>${r.weborder?(r.isCancelled?`<span class="pill sev-Critical">${esc(r.weborder)} ⚠ Cancelled</span>`:esc(r.weborder)):'—'}</td>
+    <td>${esc(r.mkpStatus)||'—'}</td>
+    <td>${esc(r.omsStatus)||'—'}</td>
+    <td>${esc(r.wmsStatus)||'—'}</td>
+    <td>${r.action?`<span style="font-weight:600;color:var(--accent)">${esc(r.action)}</span>`:'—'}</td>
+    <td>${r.ageDays===''?'—':r.ageDays+'d'}</td></tr>`).join('');
+  document.getElementById('issueCount').textContent=d.length+' issue(s)'+(d.length>500?' (showing first 500)':'');
+}
+document.querySelectorAll('#issueTable th').forEach(th=>th.onclick=()=>{const k=th.dataset.sort;sortDir=(sortKey===k)?-sortDir:1;sortKey=k;drawTable();});
+
+/* ---- Recurring & root cause ---- */
+function clusters(d){
+  const m={};d.forEach(r=>{(m[r.sig]=m[r.sig]||[]).push(r);});
+  return Object.values(m).filter(g=>g.length>=2).sort((a,b)=>b.length-a.length);
+}
+function renderRecur(){
+  const cl=clusters(scoped());
+  document.getElementById('recurList').innerHTML=cl.length?cl.slice(0,30).map(g=>{
+    const open=g.filter(r=>r.isOpen).length;
+    return `<div class="recur-item"><div class="h">
+      <b>${esc(g[0].category)}</b><span class="count-badge">${g.length}×</span></div>
+      <div class="muted" style="margin:4px 0">${esc(g[0].title).slice(0,90)}</div>
+      <div>${open} open · ${g.length-open} closed · ${[...new Set(g.map(r=>r.vendor).filter(Boolean))].join(', ')||'no vendor'}</div>
+      <div style="margin-top:5px">${g.slice(0,6).map(r=>`<span class="tag" onclick="showDetail(${r._i})">${esc(r.id)}</span>`).join('')}</div>
+    </div>`;}).join(''):'<p class="muted">No recurring clusters detected.</p>';
+
+  const rc=countBy(scoped().filter(r=>r.rootcause),'rootcause');
+  const top=Object.entries(rc).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  document.getElementById('rootList').innerHTML=top.length?top.map(([k,n])=>{
+    const max=top[0][1];
+    return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><span>${esc(k).slice(0,80)}</span><b>${n}</b></div>
+      <div class="bar"><i style="width:${n/max*100}%"></i></div></div>`;}).join(''):'<p class="muted">No root-cause field mapped. Set it in Settings → Column mapping.</p>';
+}
+
+/* ============================ DRILL / FILTER ============================ */
+function quickFilter(spec){
+  const[k,v]=spec.split(':');clearFilters();
+  if(k==='status'&&v==='__open'){/* switch tab */}
+  else if(k==='status')issueFilter.status=v;
+  else if(k==='sev')issueFilter.severity=v;
+  else if(k==='vendor'){switchTab('issues');issueFilter.vendor=v;}
+  switchTab('issues');renderIssues();
+}
+function drillFromChart(id,label){
+  clearFilters();
+  if(id==='chCat')issueFilter.category=label;
+  else if(id==='chStatus')issueFilter.status=label;
+  else if(id==='chSev')issueFilter.severity=label;
+  else if(id==='chVendor')issueFilter.vendor=label;
+  else return;
+  switchTab('issues');renderIssues();
+}
+function clearFilters(){issueFilter={source:'',category:'',status:'',severity:'',vendor:'',plant:'',q:''};if(ROWS.length)renderIssues();}
+
+/* ============================ DETAIL ============================ */
+function showDetail(i){
+  const r=ROWS.find(x=>x._i===i);if(!r)return;
+  document.getElementById('dmTitle').textContent=r.id+' — '+r.title.slice(0,80);
+  const rows=[['Source',r.source==='Anchanto'?'Anchanto-FC':'FC Ops'],['Category',r.category],['Severity',r.severity],
+    ['Status',r.status],['Vendor',r.vendor||'—'],['Owner',r.owner||'—'],
+    ['Reported',r.date?r.date.toISOString().slice(0,10):'—'],['Age',r.ageDays===''?'—':r.ageDays+' days'],
+    ['Plant',r.plant||'—'],['WebOrder',r.weborder?(r.isCancelled?r.weborder+' ⚠ CANCELLED':r.weborder):'—'],['MKP Status',r.mkpStatus||'—'],
+    ['OMS Status',r.omsStatus||'—'],['WMS Status',r.wmsStatus||'—'],
+    ['Action',r.action||'—'],['Root cause',r.rootcause||'—'],['Full text',r.title],['Sheet',r.sheet]];
+  document.getElementById('dmBody').innerHTML=rows.map(([k,v])=>`<div class="k">${k}</div><div>${esc(v)}</div>`).join('');
+  openModal('detailModal');
+}
+
+/* ============================ SETTINGS UI ============================ */
+function openSettings(){buildSettings();openModal('settingsModal');}
+function buildSettings(){
+  document.getElementById('sourceList').innerHTML=pendingSources.length?pendingSources.map((s,i)=>
+    `<div class="rulerow" style="grid-template-columns:1fr 160px"><div>${esc(s.label)}</div>
+      <select onchange="pendingSources[${i}].type=this.value">
+        <option value="Anchanto" ${s.type==='Anchanto'?'selected':''}>Anchanto-FC</option>
+        <option value="FC" ${s.type==='FC'?'selected':''}>FC Ops</option></select></div>`).join('')
+    :'<p class="muted">Load a file to see sources.</p>';
+  document.getElementById('mapGrid').innerHTML=Object.keys(FIELD_SYNONYMS).map(f=>
+    `<div class="k">${f}</div><div><select id="map_${f}">
+      <option value="">— none —</option>
+      ${HEADERS.map(h=>`<option ${CONFIG.fieldMap[f]===h?'selected':''}>${esc(h)}</option>`).join('')}
+    </select></div>`).join('')||'<span class="muted">Load a file first.</span>';
+  document.getElementById('ruleEditor').innerHTML=CONFIG.classRules.map((r,i)=>
+    `<div class="rulerow"><input type="text" id="rc_${i}" value="${esc(r.category)}">
+      <input type="text" id="rk_${i}" value="${esc(r.keywords.join(', '))}">
+      <button onclick="CONFIG.classRules.splice(${i},1);buildSettings()">✕</button></div>`).join('');
+  document.getElementById('statusEditor').innerHTML=CONFIG.statusMap.map((m,i)=>
+    `<div class="rulerow"><input type="text" value="${esc(m.canonical)}" disabled>
+      <input type="text" id="sk_${i}" value="${esc(m.keywords.join(', '))}"><span></span></div>`).join('');
+}
+function addRule(){CONFIG.classRules.push({category:'New Category',keywords:['keyword']});buildSettings();}
+function applySettings(){
+  pendingSources.forEach(s=>{RAW.forEach(r=>{if(r.__sheet===s.key)r.__source=s.type;});});
+  Object.keys(FIELD_SYNONYMS).forEach(f=>{const v=document.getElementById('map_'+f)?.value;CONFIG.fieldMap[f]=v||undefined;});
+  CONFIG.classRules.forEach((r,i)=>{r.category=document.getElementById('rc_'+i).value;r.keywords=document.getElementById('rk_'+i).value.split(',').map(x=>x.trim()).filter(Boolean);});
+  CONFIG.statusMap.forEach((m,i)=>{m.keywords=document.getElementById('sk_'+i).value.split(',').map(x=>x.trim()).filter(Boolean);});
+  saveConfig();closeModal('settingsModal');enrichAndRender();toast('Settings applied.');
+}
+function exportConfig(){const blob=new Blob([JSON.stringify(CONFIG,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='icc-config.json';a.click();}
+function importConfig(file){const r=new FileReader();r.onload=e=>{try{CONFIG=JSON.parse(e.target.result);saveConfig();buildSettings();toast('Config imported.');}catch(x){toast('Invalid config file.');}};r.readAsText(file);}
+function resetConfig(){CONFIG=structuredClone(DEFAULT_CONFIG);saveConfig();buildSettings();toast('Reset to defaults.');}
+
+/* ============================ HELPERS ============================ */
+function countBy(arr,key){const m={};arr.forEach(r=>{const k=r[key]||'—';m[k]=(m[k]||0)+1;});return m;}
+function pct(a,b){return b?Math.round(a/b*100)+'%':'0%';}
+function esc(s){return(s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3200);}
+
+/* tabs + scope */
+function switchTab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+name));
+  if(name==='exec')renderExec();}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+document.querySelectorAll('#scopeToggle button').forEach(b=>b.onclick=()=>{
+  SCOPE=b.dataset.scope;document.querySelectorAll('#scopeToggle button').forEach(x=>x.classList.toggle('on',x===b));
+  if(ROWS.length){renderExec();renderIssues();renderRecur();}});
+
+/* ============================ SAMPLE DATA ============================ */
+function loadSample(){
+  const cats=['Integration / Interface','OMS / Order','WMS / Warehouse','Inventory / Stock','Picking / Packing','Shipping / Carrier','Master Data','Performance / System','UI / Usability','Process / Manual'];
+  const titles={
+    'Integration / Interface':['OMS-WMS order sync failed for bulk orders','API timeout on inventory feed to marketplace','SAP iDoc mapping error on stock update','Webhook not triggering on order release'],
+    'OMS / Order':['Order stuck in allocation, not releasing to WMS','Split shipment created duplicate orders','Order cancellation not reflecting in WMS','SLA breach on order release queue'],
+    'WMS / Warehouse':['Putaway suggesting wrong bin location','GRN not closing after inbound complete','Outbound wave not generating tasks'],
+    'Inventory / Stock':['Stock quantity mismatch between OMS and WMS','Inventory reservation not releasing on cancel','Cycle count adjustment not posting'],
+    'Picking / Packing':['Picking wave splitting incorrectly','Pack station scanner not validating carton','Batch pick missing SKUs on tote'],
+    'Shipping / Carrier':['Carrier label printing wrong AWB','Tracking number not pushed to marketplace','Manifest not closing at cutoff','Dispatch delayed due to label error'],
+    'Master Data':['SKU barcode duplicate causing scan reject','Product UOM wrong in catalog','Missing product attribute blocks putaway'],
+    'Performance / System':['System slow during peak campaign load','WMS screen timeout on large wave','Order screen freeze under high volume'],
+    'UI / Usability':['Report view missing filter for campaign','Button layout confusing on pack screen'],
+    'Process / Manual':['Staff training gap on new pick flow','Manual workaround needed for returns','SOP unclear on split order handling']};
+  const vendors=['Anchanto','Internal IT','Carrier-Kerry','SAP Team','Marketplace-Lazada',''];
+  const statuses=['New','Investigating','Fix In Progress','UAT','Deployed','Closed','On Hold'];
+  const sevs=['Critical','High','High','Medium','Medium','Medium','Low'];
+  const roots=['Configuration gap in integration mapping','Race condition under high concurrency','Master data quality issue','Vendor-side API instability','Process not followed by user','Pending vendor patch deployment',''];
+  RAW=[];pendingSources=[];
+  const N=140;const start=new Date('2026-06-01');
+  for(let i=0;i<N;i++){
+    const isAnch=Math.random()<0.62;
+    const cat=isAnch?cats[Math.floor(Math.random()*8)]:cats[3+Math.floor(Math.random()*7)];
+    const tl=titles[cat];const title=tl[Math.floor(Math.random()*tl.length)];
+    const day=new Date(start);day.setDate(start.getDate()+Math.floor(Math.random()*6));
+    const sheet=isAnch?'Issuse 6.6 Anchanto.xlsx › Issues':'Issuse 6.6 Appareal.xlsx › Issues';
+    RAW.push({'Issue ID':'ISS-'+(1000+i),'Description':title,'Category':cat,
+      'Severity':sevs[Math.floor(Math.random()*sevs.length)],'Status':statuses[Math.floor(Math.random()*statuses.length)],
+      'Vendor':isAnch?vendors[Math.floor(Math.random()*5)]:vendors[Math.floor(Math.random()*vendors.length)],
+      'Owner':['NS','Ops Lead','IT Support','WH Sup'][Math.floor(Math.random()*4)],
+      'Date Reported':day.toLocaleDateString('en-GB'),'Root Cause':roots[Math.floor(Math.random()*roots.length)],
+      __source:isAnch?'Anchanto':'FC',__sheet:sheet});
+    if(!pendingSources.find(p=>p.key===sheet))pendingSources.push({key:sheet,label:sheet,type:isAnch?'Anchanto':'FC'});
+  }
+  CONFIG.fieldMap={id:'Issue ID',title:'Description',date:'Date Reported',category:'Category',vendor:'Vendor',severity:'Severity',status:'Status',owner:'Owner',rootcause:'Root Cause'};
+  autoMap();enrichAndRender();toast('Loaded 140 sample issues. Open Settings to see the mapping & rules.');
+}
+</script>
+</body>
+</html>
