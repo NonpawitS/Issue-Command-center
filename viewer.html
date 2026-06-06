@@ -63,6 +63,9 @@ input.search{min-width:200px}
 .kv .k{color:var(--muted);font-weight:600}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1d23;color:#fff;padding:10px 16px;border-radius:10px;z-index:60;display:none;font-size:13px}
 .stale-banner{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e;display:none}
+.src-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s}
+.src-btn:hover{background:rgba(255,255,255,.28)}
+.src-active{background:#fff!important;color:#cc0000!important;border-color:#fff!important}
 </style>
 </head>
 <body>
@@ -70,7 +73,12 @@ input.search{min-width:200px}
   <h1>⬢ 6.6 Campaign — Issue Tracker</h1>
   <span class="badge" id="badge">loading…</span>
   <div class="spacer"></div>
-  <span class="ts" id="publishedTs"></span>
+  <div id="srcBtns" style="display:flex;gap:6px;align-items:center">
+    <button onclick="setSrc('')"  id="btn-all"   class="src-btn src-active">All</button>
+    <button onclick="setSrc('Anchanto')" id="btn-anchanto" class="src-btn">Anchanto</button>
+    <button onclick="setSrc('FC')"       id="btn-fc"       class="src-btn">FC Ops</button>
+  </div>
+  <span class="ts" id="publishedTs" style="margin-left:12px"></span>
 </header>
 
 <main>
@@ -335,10 +343,18 @@ function makeDoughnut(id,labels,data,colors){
           formatter:(v,ctx)=>{const t=ctx.dataset.data.reduce((a,b)=>a+b,0);return t&&v?v+'\n('+Math.round(v/t*100)+'%)':''}}}}});
 }
 
+function setSrc(src){
+  filter.source=src;
+  ['all','anchanto','fc'].forEach(k=>{
+    document.getElementById('btn-'+k).classList.toggle('src-active',
+      (src===''&&k==='all')||(src.toLowerCase()===k));
+  });
+  renderAll();
+}
+
 function renderFilters(){
   const cats=[...new Set(ALL.map(r=>r.category))].sort();
   document.getElementById('filters').innerHTML=
-    sel('source','Source',['Anchanto','FC'])+
     sel('category','Category',cats)+
     sel('status','Status',PIPELINE)+
     sel('severity','Severity',SEVS)+
@@ -350,7 +366,7 @@ function renderFilters(){
   });
 }
 function sel(k,label,opts){return`<label style="font-size:13px">${label}: <select id="flt_${k}"><option value="">All</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></label>`;}
-function clearFilter(){filter={source:'',category:'',status:'',severity:'',q:''};document.querySelectorAll('#filters select').forEach(s=>s.value='');document.querySelector('#filters input')&&(document.querySelector('#filters input').value='');renderAll();}
+function clearFilter(){filter={source:'',category:'',status:'',severity:'',q:''};document.querySelectorAll('#filters select').forEach(s=>s.value='');document.querySelector('#filters input')&&(document.querySelector('#filters input').value='');setSrc('');}
 
 function renderTable(){
   const d=ROWS;
