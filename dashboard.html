@@ -181,6 +181,21 @@
 </nav>
 
 <main>
+  <!-- Persistent mini drop zone — always visible, drag files here anytime -->
+  <div id="miniDrop" style="border:2px dashed var(--line);border-radius:12px;padding:12px 20px;margin-bottom:14px;display:flex;align-items:center;gap:12px;background:var(--panel);transition:.15s;cursor:pointer"
+    onclick="document.getElementById('miniFileInput').click()"
+    ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='#fff5f5'"
+    ondragleave="this.style.borderColor='';this.style.background=''"
+    ondrop="event.preventDefault();this.style.borderColor='';this.style.background='';handleFiles(event.dataTransfer.files)">
+    <span style="font-size:22px">📥</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:13px">ลาก Excel มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</div>
+      <div style="font-size:11px;color:var(--muted)">รองรับ .xlsx · ลากทีละไฟล์ได้ · Anchanto-FC และ FC Ops · ไฟล์ที่ 2 จะเพิ่มเข้าไปอัตโนมัติ</div>
+    </div>
+    <div id="miniDropStatus" style="font-size:12px;color:var(--muted)"></div>
+    <input id="miniFileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden onchange="handleFiles(this.files)">
+  </div>
+
   <!-- SharePoint fetch panel — Admin only / hidden for viewers / hidden on non-localhost -->
   <div class="sp-panel" id="spAdminPanel" style="display:none">
     <h4>☁ SharePoint Auto-Load — Excel / CSV</h4>
@@ -800,8 +815,8 @@ document.body.addEventListener('drop',e=>{
 
 function handleFiles(files,replaceAll){
   const all=[...files];if(!all.length)return;
-  /* replaceAll=true → clear first (called from Fetch or explicit reset) */
   if(replaceAll){RAW=[];pendingSources=[];CANCELLED_ORDERS=new Set();CONFIG.fieldMap={};saveConfig();}
+  setMiniDropStatus('⏳ กำลังโหลด…');
   let done=0;
   all.forEach(file=>{
     const r=new FileReader();
@@ -812,11 +827,16 @@ function handleFiles(files,replaceAll){
       if(++done===all.length){
         autoMap();enrichAndRender();
         const srcNames=[...new Set(pendingSources.map(p=>p.type))].join(' + ');
-        toast('โหลดแล้ว '+RAW.length+' rows ('+srcNames+') จาก '+pendingSources.length+' sheet(s)');
+        toast('โหลดแล้ว '+RAW.length+' rows ('+srcNames+')');
       }
     };
     r.readAsArrayBuffer(file);
   });
+}
+
+function setMiniDropStatus(msg){
+  const el=document.getElementById('miniDropStatus');
+  if(el)el.textContent=msg;
 }
 
 function autoMap(){
@@ -952,6 +972,15 @@ function enrichAndRender(){
   enrich();
   document.getElementById('emptyState').style.display='none';
   document.getElementById('dataBadge').textContent=ROWS.length+' issues · '+new Set(ROWS.map(r=>r.sheet)).size+' sheet(s)';
+  /* Update mini drop zone status */
+  const srcLoaded=[...new Set(pendingSources.map(p=>p.type))];
+  const missing=[];
+  if(!srcLoaded.includes('Anchanto'))missing.push('Anchanto-FC');
+  if(!srcLoaded.includes('FC'))missing.push('FC Ops');
+  const statusMsg=missing.length
+    ? '✓ '+srcLoaded.join('+')+'  |  ยังขาด: '+missing.join(', ')+' — ลากมาเพิ่มได้'
+    : '✓ โหลดครบแล้ว: Anchanto-FC + FC Ops';
+  setMiniDropStatus(statusMsg);
   renderExec();renderIssues();renderRecur();
 }
 
