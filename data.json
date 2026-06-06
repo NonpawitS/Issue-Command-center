@@ -1,5 +1,5 @@
 {
-  "published": "2026-06-06T09:09:55.602Z",
+  "published": "2026-06-06T09:14:21.815Z",
   "rows": [
     {
       "id": "LogNo:1260",
@@ -420,6 +420,27 @@
       "rootcause": "ปริ้นAWB แล้วขึ้น Error PackConfirm ไม่สำเร็จ :AnchantoUpdateStatus failed:Conflict",
       "sheet": "Anchanto-FC SharePoint › Data",
       "problemType": "ปริ้นAWB แล้วขึ้น Error PackConfirm ไม่สำเร็จ :AnchantoUpdateStatus failed:Conflict"
+    },
+    {
+      "id": "LogNo:1303",
+      "title": "Order หลัง 15.00 หลังจากที่ทำ Packbyzone เสร็จ",
+      "category": "Pick / Pack",
+      "severity": "Medium",
+      "status": "New",
+      "isOpen": true,
+      "isCancelled": false,
+      "ageDays": 1,
+      "dateStr": "2026-06-05",
+      "plant": "1005",
+      "weborder": "",
+      "mkpStatus": "",
+      "omsStatus": "",
+      "wmsStatus": "",
+      "action": "",
+      "owner": "",
+      "rootcause": "",
+      "sheet": "Anchanto-FC SharePoint › Data",
+      "problemType": ""
     }
   ]
 }
