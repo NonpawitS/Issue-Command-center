@@ -821,6 +821,14 @@ function handleFiles(files,replaceAll){
   all.forEach(file=>{
     const r=new FileReader();
     r.onload=ev=>{
+      /* ป้องกัน duplicate: ถ้าโหลดไฟล์ชื่อเดิมไปแล้ว ให้ลบ rows ของไฟล์นั้นออกก่อน แล้วโหลดใหม่ */
+      const existIdx=pendingSources.findIndex(p=>p.key.startsWith(file.name));
+      if(existIdx>=0){
+        const oldKey=pendingSources[existIdx].key;
+        RAW=RAW.filter(r=>r.__sheet!==oldKey);
+        CANCELLED_ORDERS=new Set();
+        pendingSources.splice(existIdx,1);
+      }
       const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
       const defSrc=/apparel|appareal/i.test(file.name)?'FC':'Anchanto';
       ingestWorkbook(wb,file.name,'',defSrc);
