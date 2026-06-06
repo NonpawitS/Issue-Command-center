@@ -777,11 +777,7 @@ function enrich(){
     const cat=CONFIG.fieldMap.category&&val(row,'category')?bestCat(val(row,'category'),title,row):classify([title,val(row,'category'),val(row,'subsystem'),val(row,'rootcause')].join(' '));
     const status=normStatus(val(row,'status'));
     const sev=normSev(val(row,'severity'));
-    /* Both Anchanto and FC Ops use "วันที่ (วัน/เดือน/ปี)" — always dd/mm/yy Thai format.
-       dayfirst=true for all rows. Only exception: if value is a real Date object or serial
-       number, parseDate handles those directly without needing the flag. */
-    const dateRaw=val(row,'date');
-    let d=parseDate(dateRaw,true);
+    let d=parseDate(val(row,'date'));
     const vendor=val(row,'vendor');
     const isVendor=!!vendor || (!CONFIG.fieldMap.vendor && CONFIG.vendorOwnedCategories.includes(cat));
     const ageDays=d?Math.max(0,Math.round((today-d)/864e5)):'';
@@ -807,40 +803,54 @@ function bestCat(rawCat,title,row){
   const viaRule=classify([title,rawCat,val(row,'subsystem'),val(row,'rootcause')].join(' '));
   return viaRule!=='Uncategorized'?viaRule:(rawCat||'Uncategorized');
 }
-/* dayfirst=true → interpret dd/mm/yyyy (Thai/UK convention)
-   dayfirst=false → interpret mm/dd/yyyy (US/Excel SharePoint serialized) */
-function parseDate(s,dayfirst){
+/* parseDate: handles Excel/SharePoint date strings intelligently.
+   SharePoint serializes dates as m/d/yy (US format) regardless of column name.
+   Strategy: try mm/dd first (US), if result is future date > 7 days, try dd/mm instead,
+   pick whichever is closer to today without being in the future. */
+function parseDate(s){
   if(!s&&s!==0)return null;
-  /* SheetJS cellDates:true → real Date object, normalise UTC→local midnight */
+  /* Real JS Date object from SheetJS cellDates — normalise UTC→local */
   if(s instanceof Date){
     if(isNaN(s))return null;
     return new Date(s.getUTCFullYear(),s.getUTCMonth(),s.getUTCDate());
   }
-  /* Excel serial number (raw:true on numeric date cells) e.g. 46777 = 5 May 2026 */
+  /* Excel serial number (numeric) */
   if(typeof s==='number'&&s>40000&&s<60000){
-    /* Excel epoch: 1899-12-30 + serial days (Windows mode, leap-year bug included) */
     const d=new Date(Date.UTC(1899,11,30)+s*864e5);
     return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
   }
   s=(''+s).trim();
-  /* ISO yyyy-mm-dd (unambiguous) */
+  if(!s)return null;
+  /* ISO yyyy-mm-dd — unambiguous */
   let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m){const d=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(d)?null:d;}
-  /* Short slash-separated: d/m/yy or m/d/yy */
+
+  /* Short slash: could be m/d/yy (US/SharePoint) or d/m/yy (Thai) */
   m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if(m){
     let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
-    let dy,mo;
-    if(dayfirst){dy=+a;mo=+b;}         /* column says วัน/เดือน/ปี → dayfirst */
-    else if(+a>12){dy=+a;mo=+b;}       /* first part >12 → must be day */
-    else if(+b>12){dy=+b;mo=+a;}       /* second part >12 → must be day */
-    else{mo=+a;dy=+b;}                  /* ambiguous & not forced → treat as m/d (Excel US) */
-    const d=new Date(+y,mo-1,dy);return isNaN(d)?null:d;
+    const today=new Date();today.setHours(0,0,0,0);
+    /* If either part >12, order is forced */
+    if(+a>12){/* a must be day */const d=new Date(+y,+b-1,+a);return isNaN(d)?null:d;}
+    if(+b>12){/* b must be day */const d=new Date(+y,+a-1,+b);return isNaN(d)?null:d;}
+    /* Both ≤12 — ambiguous. Try US (m/d) first */
+    const dUS=new Date(+y,+a-1,+b); /* mm/dd */
+    const dTH=new Date(+y,+b-1,+a); /* dd/mm */
+    const msUS=today-dUS, msTH=today-dTH;
+    /* Pick the one that is NOT in the future (or least future).
+       If both past: pick closer to today. If one past one future: pick past. */
+    const usOk=!isNaN(dUS)&&msUS>=-86400000; /* allow today */
+    const thOk=!isNaN(dTH)&&msTH>=-86400000;
+    if(usOk&&thOk) return msUS<=msTH?dUS:dTH; /* both past → closer */
+    if(usOk) return dUS;
+    if(thOk) return dTH;
+    /* Both future — return US as fallback */
+    return isNaN(dUS)?null:dUS;
   }
-  /* dd/mm/yyyy or dd-mm-yyyy with separator other than / */
+  /* dd/mm/yyyy with dot or dash separator */
   m=s.match(/^(\d{1,2})[.\-](\d{1,2})[.\-](\d{2,4})/);
   if(m){let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
-    const d=new Date(+y,+b-1,+a);return isNaN(d)?null:d;}
+    return new Date(+y,+b-1,+a);}
   const d=new Date(s);return isNaN(d)?null:d;
 }
 
