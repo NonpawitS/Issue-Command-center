@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>6.6 Campaign — Issue Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa;--panel:#ffffff;--panel2:#f0f1f5;--line:#e2e5ea;--txt:#1a1d23;
+  --muted:#6b7280;--accent:#cc0000;--green:#16a34a;--amber:#d97706;--shadow:0 1px 4px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans Thai",sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:#cc0000;border-bottom:3px solid #aa0000;position:sticky;top:0;z-index:30;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+header h1{font-size:15px;margin:0;font-weight:700;color:#fff}
+header .badge{font-size:11px;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.4);padding:2px 8px;border-radius:999px}
+header .spacer{flex:1}
+header .ts{font-size:11px;color:rgba(255,255,255,.65)}
+main{padding:16px 20px 60px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.kpi{position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent)}
+.kpi.g::before{background:var(--green)}.kpi.a::before{background:var(--amber)}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.kpi .value{font-size:28px;font-weight:800;margin-top:4px;color:var(--accent)}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.card h3{margin:0 0 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px}
+canvas{max-height:260px}
+.row2{grid-template-columns:1fr 1fr}
+@media(max-width:800px){.row2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;background:#fff;font-weight:700;position:sticky;top:0;cursor:pointer;user-select:none}
+th:hover{color:var(--accent)}
+tbody tr:hover{background:#fff5f5;cursor:pointer}
+.tablewrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.sev-Critical{background:rgba(204,0,0,.15);color:#cc0000;border:1px solid rgba(204,0,0,.3)}
+.sev-High{background:rgba(217,119,6,.15);color:#92400e;border:1px solid rgba(217,119,6,.3)}
+.sev-Medium{background:rgba(29,78,216,.12);color:#1d4ed8;border:1px solid rgba(29,78,216,.3)}
+.sev-Low{background:rgba(107,114,128,.12);color:#4b5563;border:1px solid rgba(107,114,128,.3)}
+.st-open{background:rgba(204,0,0,.1);color:#cc0000;border:1px solid rgba(204,0,0,.25)}
+.st-closed{background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.25)}
+.st-hold{background:rgba(217,119,6,.1);color:#92400e;border:1px solid rgba(217,119,6,.25)}
+.st-other{background:rgba(107,114,128,.1);color:#4b5563;border:1px solid rgba(107,114,128,.25)}
+.cancelled-pill{background:rgba(204,0,0,.15);color:#cc0000;border:1px solid rgba(204,0,0,.3);font-size:10px}
+.src-anch{background:rgba(204,0,0,.12);color:#cc0000;border:1px solid rgba(204,0,0,.3)}
+.src-fc{background:rgba(29,78,216,.12);color:#1d4ed8;border:1px solid rgba(29,78,216,.3)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+select,input[type=text]{background:#fff;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+select:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
+input.search{min-width:200px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;gap:10px;color:var(--muted)}
+.empty h2{margin:0;font-size:17px;color:var(--txt)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal.open{display:flex}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:720px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;font-size:13px}
+.kv .k{color:var(--muted);font-weight:600}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1d23;color:#fff;padding:10px 16px;border-radius:10px;z-index:60;display:none;font-size:13px}
+.stale-banner{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e;display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>⬢ 6.6 Campaign — Issue Tracker</h1>
+  <span class="badge" id="badge">loading…</span>
+  <div class="spacer"></div>
+  <span class="ts" id="publishedTs"></span>
+</header>
+
+<main>
+  <div class="stale-banner" id="staleBanner">
+    ⚠ ข้อมูลนี้อาจไม่ใช่ล่าสุด — อัปเดตครั้งสุดท้าย <span id="staleTs"></span>
+  </div>
+
+  <div id="emptyState" class="empty" style="display:none">
+    <div style="font-size:36px">📭</div>
+    <h2>ยังไม่มีข้อมูล</h2>
+    <p>Admin ยังไม่ได้ Publish ข้อมูล — กรุณาติดต่อทีม Central</p>
+  </div>
+
+  <div id="dashContent" style="display:none">
+    <!-- KPIs -->
+    <div class="grid kpis" id="kpiRow"></div>
+
+    <!-- Charts -->
+    <div class="grid row2" style="margin-top:14px">
+      <div class="card"><h3>Issues by Category</h3><canvas id="chCat"></canvas></div>
+      <div class="card"><h3>Status Pipeline</h3><canvas id="chStatus"></canvas></div>
+    </div>
+    <div class="grid row2" style="margin-top:14px">
+      <div class="card"><h3>Severity Mix</h3><canvas id="chSev"></canvas></div>
+      <div class="card"><h3>Top Problem Types</h3><canvas id="chProb"></canvas></div>
+    </div>
+
+    <!-- Issues Table -->
+    <div class="card" style="margin-top:14px">
+      <h3>Issue List</h3>
+      <div class="filters" id="filters"></div>
+      <div class="tablewrap">
+        <table id="issueTable">
+          <thead><tr>
+            <th data-sort="source">Source</th><th data-sort="id">ID</th>
+            <th data-sort="title">Issue</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="severity">Severity</th>
+            <th data-sort="status">Status</th>
+            <th data-sort="weborder">WebOrder</th>
+            <th data-sort="mkpStatus">MKP Status</th>
+            <th data-sort="omsStatus">OMS Status</th>
+            <th data-sort="wmsStatus">WMS Status</th>
+            <th data-sort="action">Action</th>
+            <th data-sort="ageDays">Age</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted" id="issueCount" style="margin-top:8px;font-size:12px;color:var(--muted)"></p>
+    </div>
+  </div>
+</main>
+
+<!-- Detail Modal -->
+<div class="modal" id="detailModal"><div class="box">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2 id="dmTitle" style="margin:0;font-size:15px;color:var(--accent)"></h2>
+    <button onclick="closeModal()" style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
+  </div>
+  <div class="kv" id="dmBody" style="margin-top:12px"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+Chart.register(ChartDataLabels);
+let ALL=[], ROWS=[], CHARTS={};
+let sortKey='ageDays', sortDir=-1;
+let filter={source:'',category:'',status:'',severity:'',q:''};
+
+const PIPELINE=['New','Investigating','Fix In Progress','UAT','Deployed','Closed','On Hold'];
+const SEVS=['Critical','High','Medium','Low'];
+
+async function init(){
+  try{
+    const res=await fetch('data.json?_t='+Date.now(),{cache:'no-store'});
+    const data=await res.json();
+    if(!data.rows||!data.rows.length){
+      document.getElementById('emptyState').style.display='flex';
+      document.getElementById('badge').textContent='ไม่มีข้อมูล';
+      return;
+    }
+    ALL=data.rows;
+    ROWS=ALL.slice();
+
+    /* Published timestamp */
+    const pub=data.published?new Date(data.published):null;
+    if(pub){
+      const ts=pub.toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});
+      document.getElementById('publishedTs').textContent='อัปเดต '+ts;
+      document.getElementById('badge').textContent=ALL.length+' issues';
+
+      /* Stale warning: >6h old */
+      const age=(Date.now()-pub.getTime())/36e5;
+      if(age>6){
+        document.getElementById('staleBanner').style.display='block';
+        document.getElementById('staleTs').textContent=ts;
+      }
+    }
+
+    document.getElementById('dashContent').style.display='block';
+    renderAll();
+  }catch(e){
+    document.getElementById('emptyState').style.display='flex';
+    document.getElementById('badge').textContent='โหลดไม่ได้';
+    console.error(e);
+  }
+}
+
+function renderAll(){
+  ROWS=applyFilter(ALL);
+  renderKPIs();
+  renderCharts();
+  renderTable();
+}
+
+function applyFilter(rows){
+  let d=rows.slice();
+  if(filter.source)d=d.filter(r=>r.source===filter.source);
+  if(filter.category)d=d.filter(r=>r.category===filter.category);
+  if(filter.status)d=d.filter(r=>r.status===filter.status);
+  if(filter.severity)d=d.filter(r=>r.severity===filter.severity);
+  if(filter.q){const q=filter.q.toLowerCase();d=d.filter(r=>(r.title+r.id+r.weborder+r.action).toLowerCase().includes(q));}
+  d=d.slice().sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(x==null||x==='')x=sortDir>0?Infinity:-Infinity;if(y==null||y==='')y=sortDir>0?Infinity:-Infinity;return(x>y?1:x<y?-1:0)*sortDir;});
+  return d;
+}
+
+function renderKPIs(){
+  const d=ROWS;
+  const open=d.filter(r=>r.isOpen).length;
+  const crit=d.filter(r=>r.isOpen&&r.severity==='Critical').length;
+  const cancelled=d.filter(r=>r.isCancelled).length;
+  const ages=d.filter(r=>r.isOpen&&r.ageDays!=='').map(r=>+r.ageDays);
+  const avg=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):'—';
+  document.getElementById('kpiRow').innerHTML=
+    kpi('Total Issues',d.length,'Anchanto-FC','')+
+    kpi('Open',open,pct(open,d.length)+' ยังค้างอยู่','')+
+    kpi('Closed',d.length-open,pct(d.length-open,d.length)+' แก้แล้ว','g')+
+    kpi('Critical Open',crit,'ต้องด่วน','')+
+    kpi('Cancelled Orders',cancelled,'จาก list cancelled','a')+
+    kpi('Avg Open Age',avg+(avg==='—'?'':' d'),'วันเฉลี่ยที่ยังค้าง','a');
+}
+function kpi(l,v,s,cls){return`<div class="card kpi ${cls}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`;}
+function pct(a,b){return b?Math.round(a/b*100)+'%':'0%';}
+
+function renderCharts(){
+  const d=ROWS;
+  /* Category bar */
+  const byCat=countBy(d,'category');
+  makeBarH('chCat',Object.keys(byCat),Object.values(byCat),'#cc0000');
+  /* Status bar */
+  const stColors=['#6b7280','#0891b2','#7c3aed','#d97706','#1d4ed8','#16a34a','#ef4444'];
+  makeBarH('chStatus',PIPELINE,PIPELINE.map(s=>d.filter(r=>r.status===s).length),stColors);
+  /* Severity doughnut */
+  makeDoughnut('chSev',SEVS,SEVS.map(s=>d.filter(r=>r.severity===s).length),['#cc0000','#d97706','#1d4ed8','#9ca3af']);
+  /* Top problem types */
+  const pm={};
+  d.forEach(r=>{const t=(r.problemType||r.category||'').trim();if(!t||t==='Uncategorized')return;
+    t.split(/[\n;]/).map(x=>x.trim()).filter(x=>x.length>2).forEach(p=>{const k=p.slice(0,55);pm[k]=(pm[k]||0)+1;});});
+  const top=Object.entries(pm).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(top.length)makeBarH('chProb',top.map(x=>x[0]),top.map(x=>x[1]),'#7c3aed');
+}
+
+function makeBarH(id,labels,data,color){
+  if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}
+  const ctx=document.getElementById(id);if(!ctx)return;
+  const isH=labels.length>4;
+  const colors=Array.isArray(color)?color:labels.map((_,i)=>Array.isArray(color)?color[i%color.length]:color);
+  CHARTS[id]=new Chart(ctx,{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:Array.isArray(color)&&color.length===data.length?color:colors,borderWidth:0,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:isH?'y':'x',
+      plugins:{legend:{display:false},
+        datalabels:{anchor:'end',align:'start',clamp:true,
+          color:ctx=>{const v=ctx.dataset.data[ctx.dataIndex];const mx=Math.max(...ctx.dataset.data);return v/mx>0.25?'#fff':'#1a1d23';},
+          font:{size:11,weight:'700'},formatter:v=>v>0?v:''}},
+      scales:isH?{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#e2e5ea'}},
+        y:{ticks:{color:'#1a1d23',font:{size:11}},grid:{display:false}}}:
+        {x:{ticks:{color:'#6b7280',font:{size:11}}},y:{ticks:{color:'#6b7280',font:{size:11}}}}}});
+}
+function makeDoughnut(id,labels,data,colors){
+  if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}
+  const ctx=document.getElementById(id);if(!ctx)return;
+  CHARTS[id]=new Chart(ctx,{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+      plugins:{legend:{display:true,position:'bottom',labels:{color:'#6b7280',boxWidth:12,font:{size:11}}},
+        datalabels:{color:'#fff',font:{size:11,weight:'700'},
+          formatter:(v,ctx)=>{const t=ctx.dataset.data.reduce((a,b)=>a+b,0);return t&&v?v+'\n('+Math.round(v/t*100)+'%)':''}}}}});
+}
+
+function renderFilters(){
+  const cats=[...new Set(ALL.map(r=>r.category))].sort();
+  document.getElementById('filters').innerHTML=
+    sel('source','Source',['Anchanto','FC'])+
+    sel('category','Category',cats)+
+    sel('status','Status',PIPELINE)+
+    sel('severity','Severity',SEVS)+
+    `<input class="search" type="text" placeholder="ค้นหา ID, Issue, WebOrder…" oninput="filter.q=this.value;renderAll()">
+     <button onclick="clearFilter()" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">Clear</button>`;
+  ['source','category','status','severity'].forEach(k=>{
+    const el=document.getElementById('flt_'+k);
+    if(el)el.onchange=e=>{filter[k]=e.target.value;renderAll();};
+  });
+}
+function sel(k,label,opts){return`<label style="font-size:13px">${label}: <select id="flt_${k}"><option value="">All</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></label>`;}
+function clearFilter(){filter={source:'',category:'',status:'',severity:'',q:''};document.querySelectorAll('#filters select').forEach(s=>s.value='');document.querySelector('#filters input')&&(document.querySelector('#filters input').value='');renderAll();}
+
+function renderTable(){
+  const d=ROWS;
+  document.querySelector('#issueTable tbody').innerHTML=d.slice(0,500).map(r=>`<tr onclick="showDetail('${r.id}')">
+    <td><span class="pill ${r.source==='Anchanto'?'src-anch':'src-fc'}">${r.source==='Anchanto'?'Anchanto':'FC'}</span></td>
+    <td>${esc(r.id)}</td>
+    <td style="max-width:280px">${esc(r.title).slice(0,100)}</td>
+    <td>${esc(r.category)}</td>
+    <td><span class="pill sev-${r.severity}">${r.severity}</span></td>
+    <td><span class="pill ${stClass(r.status)}">${r.status}</span></td>
+    <td>${r.weborder?(r.isCancelled?`<span class="pill cancelled-pill">${esc(r.weborder)} ⚠ Cancelled</span>`:esc(r.weborder)):'—'}</td>
+    <td>${esc(r.mkpStatus)||'—'}</td>
+    <td>${esc(r.omsStatus)||'—'}</td>
+    <td>${esc(r.wmsStatus)||'—'}</td>
+    <td>${r.action?`<b style="color:var(--accent)">${esc(r.action)}</b>`:'—'}</td>
+    <td>${r.ageDays===''||r.ageDays==null?'—':r.ageDays+'d'}</td>
+  </tr>`).join('');
+  document.getElementById('issueCount').textContent=d.length+' issue(s)'+(d.length>500?' (showing 500)':'');
+}
+function stClass(s){if(!s)return'st-other';s=s.toLowerCase();if(s==='closed')return'st-closed';if(s==='on hold')return'st-hold';if(s==='new'||s.includes('progress'))return'st-open';return'st-other';}
+
+function showDetail(id){
+  const r=ALL.find(x=>x.id===id);if(!r)return;
+  document.getElementById('dmTitle').textContent=r.id+' — '+(r.title||'').slice(0,80);
+  const rows=[['Category',r.category],['Severity',r.severity],['Status',r.status],
+    ['Reported',r.dateStr||'—'],['Age',r.ageDays!=null&&r.ageDays!==''?r.ageDays+' days':'—'],
+    ['WebOrder',r.isCancelled?(r.weborder+' ⚠ CANCELLED'):r.weborder||'—'],
+    ['MKP Status',r.mkpStatus||'—'],['OMS Status',r.omsStatus||'—'],['WMS Status',r.wmsStatus||'—'],
+    ['Action',r.action||'—'],['Owner',r.owner||'—'],['Root Cause',r.rootcause||'—'],
+    ['Full text',r.title||'—'],['Sheet',r.sheet||'—']];
+  document.getElementById('dmBody').innerHTML=rows.map(([k,v])=>`<div class="k">${k}</div><div>${esc(v||'—')}</div>`).join('');
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeModal(){document.getElementById('detailModal').classList.remove('open');}
+
+document.querySelectorAll('#issueTable th').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.sort;sortDir=(sortKey===k)?-sortDir:1;sortKey=k;renderTable();});
+
+function countBy(arr,key){const m={};arr.forEach(r=>{const k=r[key]||'—';m[k]=(m[k]||0)+1;});return m;}
+function esc(s){return(s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+
+init().then(()=>renderFilters());
+</script>
+</body>
+</html>
