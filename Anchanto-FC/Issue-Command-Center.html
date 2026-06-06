@@ -478,9 +478,10 @@ async function fetchBothSharePoint(){
 }
 
 async function fetchOneFile(url,source){
-  /* cache-bust: append timestamp so browser never serves stale Excel from HTTP cache */
+  /* cache-bust: append timestamp to bypass both browser and SharePoint CDN cache */
   const bustUrl=url+(url.includes('?')?'&':'?')+'_t='+Date.now();
-  const res=await fetch(bustUrl,{mode:'cors',credentials:'include',cache:'no-store'});
+  const res=await fetch(bustUrl,{mode:'cors',credentials:'include',cache:'no-store',
+    headers:{'Pragma':'no-cache','Cache-Control':'no-cache, no-store'}});
   if(!res.ok)throw new Error(source+': HTTP '+res.status);
   const buf=await res.arrayBuffer();
   /* Try binary (xlsx) first; falls back cleanly for csv too */
@@ -645,9 +646,11 @@ function enrich(){
     const cat=CONFIG.fieldMap.category&&val(row,'category')?bestCat(val(row,'category'),title,row):classify([title,val(row,'category'),val(row,'subsystem'),val(row,'rootcause')].join(' '));
     const status=normStatus(val(row,'status'));
     const sev=normSev(val(row,'severity'));
-    /* dayfirst=true when column name explicitly says วัน/เดือน/ปี (Thai day-first format) */
+    /* dayfirst: true if column header OR source indicates Thai/UK dd/mm/yyyy convention.
+       Anchanto file uses column "วันที่ (วัน/เดือน/ปี)" which is always day-first.
+       FC Ops (Appareal) dates come from Excel as Date objects (cellDates:true) so format doesn't matter. */
     const dateCol=(CONFIG.fieldMap.date||'');
-    const dayfirst=/วัน|วันที่|dd.mm|d.m.y/i.test(dateCol);
+    const dayfirst=row.__source==='Anchanto'||/วัน|วันที่|dd.mm|d.m.y/i.test(dateCol);
     let d=parseDate(val(row,'date'),dayfirst);
     const vendor=val(row,'vendor');
     const isVendor=!!vendor || (!CONFIG.fieldMap.vendor && CONFIG.vendorOwnedCategories.includes(cat));
