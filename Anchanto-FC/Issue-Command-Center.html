@@ -478,7 +478,9 @@ async function fetchBothSharePoint(){
 }
 
 async function fetchOneFile(url,source){
-  const res=await fetch(url,{mode:'cors',credentials:'include'});
+  /* cache-bust: append timestamp so browser never serves stale Excel from HTTP cache */
+  const bustUrl=url+(url.includes('?')?'&':'?')+'_t='+Date.now();
+  const res=await fetch(bustUrl,{mode:'cors',credentials:'include',cache:'no-store'});
   if(!res.ok)throw new Error(source+': HTTP '+res.status);
   const buf=await res.arrayBuffer();
   /* Try binary (xlsx) first; falls back cleanly for csv too */
