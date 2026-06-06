@@ -777,12 +777,11 @@ function enrich(){
     const cat=CONFIG.fieldMap.category&&val(row,'category')?bestCat(val(row,'category'),title,row):classify([title,val(row,'category'),val(row,'subsystem'),val(row,'rootcause')].join(' '));
     const status=normStatus(val(row,'status'));
     const sev=normSev(val(row,'severity'));
-    /* dayfirst: true if column header OR source indicates Thai/UK dd/mm/yyyy convention.
-       Anchanto file uses column "วันที่ (วัน/เดือน/ปี)" which is always day-first.
-       FC Ops (Appareal) dates come from Excel as Date objects (cellDates:true) so format doesn't matter. */
-    const dateCol=(CONFIG.fieldMap.date||'');
-    const dayfirst=row.__source==='Anchanto'||/วัน|วันที่|dd.mm|d.m.y/i.test(dateCol);
-    let d=parseDate(val(row,'date'),dayfirst);
+    /* Both Anchanto and FC Ops use "วันที่ (วัน/เดือน/ปี)" — always dd/mm/yy Thai format.
+       dayfirst=true for all rows. Only exception: if value is a real Date object or serial
+       number, parseDate handles those directly without needing the flag. */
+    const dateRaw=val(row,'date');
+    let d=parseDate(dateRaw,true);
     const vendor=val(row,'vendor');
     const isVendor=!!vendor || (!CONFIG.fieldMap.vendor && CONFIG.vendorOwnedCategories.includes(cat));
     const ageDays=d?Math.max(0,Math.round((today-d)/864e5)):'';
