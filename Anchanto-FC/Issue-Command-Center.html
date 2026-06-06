@@ -643,7 +643,10 @@ function enrich(){
     const cat=CONFIG.fieldMap.category&&val(row,'category')?bestCat(val(row,'category'),title,row):classify([title,val(row,'category'),val(row,'subsystem'),val(row,'rootcause')].join(' '));
     const status=normStatus(val(row,'status'));
     const sev=normSev(val(row,'severity'));
-    let d=parseDate(val(row,'date'));
+    /* dayfirst=true when column name explicitly says วัน/เดือน/ปี (Thai day-first format) */
+    const dateCol=(CONFIG.fieldMap.date||'');
+    const dayfirst=/วัน|วันที่|dd.mm|d.m.y/i.test(dateCol);
+    let d=parseDate(val(row,'date'),dayfirst);
     const vendor=val(row,'vendor');
     const isVendor=!!vendor || (!CONFIG.fieldMap.vendor && CONFIG.vendorOwnedCategories.includes(cat));
     const ageDays=d?Math.max(0,Math.round((today-d)/864e5)):'';
@@ -669,25 +672,37 @@ function bestCat(rawCat,title,row){
   const viaRule=classify([title,rawCat,val(row,'subsystem'),val(row,'rootcause')].join(' '));
   return viaRule!=='Uncategorized'?viaRule:(rawCat||'Uncategorized');
 }
-function parseDate(s){if(!s)return null;if(s instanceof Date)return isNaN(s)?null:s;
+/* dayfirst=true → interpret dd/mm/yyyy (Thai/UK convention)
+   dayfirst=false → interpret mm/dd/yyyy (US/Excel SharePoint serialized) */
+function parseDate(s,dayfirst){
+  if(!s)return null;
+  /* SheetJS cellDates:true may give a real Date object — normalise to local midnight */
+  if(s instanceof Date){
+    if(isNaN(s))return null;
+    /* UTC midnight from SheetJS → local date (strip time) */
+    return new Date(s.getUTCFullYear(),s.getUTCMonth(),s.getUTCDate());
+  }
   s=(''+s).trim();
-  /* ISO yyyy-mm-dd */
+  /* ISO yyyy-mm-dd (unambiguous) */
   let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m){const d=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(d)?null:d;}
-  /* Excel serialized short date: m/d/yy or m/d/yyyy (US locale from SharePoint) */
+  /* Short slash-separated: d/m/yy or m/d/yy */
   m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if(m){let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
-    /* Heuristic: if first part ≤12 AND second part >12 → definitely dd/mm; else assume m/d (US) */
-    let mo=+a,dy=+b;
-    if(dy>12&&mo<=12){/* already m/d */}
-    else if(mo>12&&dy<=12){mo=+b;dy=+a;}/* swap: was dd/mm */
-    /* else ambiguous — keep as m/d (matches Excel US output) */
-    const d=new Date(+y,mo-1,dy);return isNaN(d)?null:d;}
-  /* dd/mm/yyyy or dd-mm-yyyy */
-  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){
+    let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
+    let dy,mo;
+    if(dayfirst){dy=+a;mo=+b;}         /* column says วัน/เดือน/ปี → dayfirst */
+    else if(+a>12){dy=+a;mo=+b;}       /* first part >12 → must be day */
+    else if(+b>12){dy=+b;mo=+a;}       /* second part >12 → must be day */
+    else{mo=+a;dy=+b;}                  /* ambiguous & not forced → treat as m/d (Excel US) */
+    const d=new Date(+y,mo-1,dy);return isNaN(d)?null:d;
+  }
+  /* dd/mm/yyyy or dd-mm-yyyy with separator other than / */
+  m=s.match(/^(\d{1,2})[.\-](\d{1,2})[.\-](\d{2,4})/);
   if(m){let[_,a,b,y]=m;y=y.length<4?'20'+y:y;
     const d=new Date(+y,+b-1,+a);return isNaN(d)?null:d;}
-  const d=new Date(s);return isNaN(d)?null:d;}
+  const d=new Date(s);return isNaN(d)?null:d;
+}
 
 /* ============================ RENDER ============================ */
 function scoped(){return SCOPE==='all'?ROWS:ROWS.filter(r=>r.source===SCOPE);}
