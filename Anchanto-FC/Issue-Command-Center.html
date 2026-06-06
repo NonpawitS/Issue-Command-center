@@ -71,6 +71,7 @@
   .modal.open{display:flex}
   .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
   .modal .box.wide{max-width:920px}
+  .modal .box code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px;font-family:ui-monospace,Consolas,monospace}
   .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px}
   .kv .k{color:var(--muted);font-weight:600}
   textarea{width:100%;min-height:90px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace}
@@ -135,6 +136,7 @@
     <button class="btn-ghost" onclick="openSettings()">⚙ Settings</button>
     <button class="btn-ghost" onclick="loadSample()">▣ Sample</button>
     <label class="btn btn-ghost" style="cursor:pointer">↥ Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></label>
+    <button id="publishBtn" class="btn-ghost" onclick="openPublishModal()" title="Publish ข้อมูล Anchanto-FC ให้คนนอกดูได้" style="background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)">📤 Publish</button>
     <span class="admin-badge">ADMIN</span>
     <button class="btn-ghost" onclick="lockAdmin()" title="ออกจาก Admin mode" style="font-size:11px;padding:4px 8px">🔒 Lock</button>
   </div>
@@ -226,6 +228,31 @@
     </div>
   </section>
 </main>
+
+<!-- PUBLISH MODAL -->
+<div class="modal" id="publishModal"><div class="box" style="max-width:480px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h2 style="margin:0;font-size:16px;color:var(--accent)">📤 Publish ข้อมูลให้คนนอก</h2>
+    <button onclick="closeModal('publishModal')">✕</button>
+  </div>
+  <p class="muted" style="margin:0 0 14px;font-size:13px">
+    ระบบจะ export ข้อมูล <b>Anchanto-FC</b> ทั้งหมดที่โหลดอยู่ ขึ้น GitHub (<code>data.json</code>)<br>
+    คนนอกสามารถเปิดดูได้ที่ <a href="https://nonpawits.github.io/Issue-Command-center/" target="_blank" style="color:var(--accent)">nonpawits.github.io/Issue-Command-center/</a>
+  </p>
+  <div class="card" style="margin-bottom:12px;padding:12px">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">GitHub Personal Access Token <span style="color:var(--red)">*</span></div>
+    <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;margin-bottom:6px"
+      oninput="localStorage.setItem('icc_gh_token',this.value)">
+    <small class="hint">Token ต้องมี scope <b>repo</b> — เก็บใน localStorage browser นี้เท่านั้น ไม่ส่งไปไหน<br>
+    สร้างได้ที่ GitHub → Settings → Developer settings → Personal access tokens</small>
+  </div>
+  <div id="publishPreview" style="font-size:13px;margin-bottom:12px;color:var(--muted)"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="closeModal('publishModal')">ยกเลิก</button>
+    <button class="btn-accent" id="publishConfirmBtn" onclick="doPublish()">📤 Publish ทันที</button>
+  </div>
+  <div id="publishStatus" style="font-size:12px;margin-top:10px;min-height:16px"></div>
+</div></div>
 
 <!-- ADMIN PIN MODAL -->
 <div class="modal" id="pinModal"><div class="pin-box">
@@ -354,6 +381,92 @@ function lockAdmin(){
   sessionStorage.removeItem(LS_ADMIN_SESSION);
   applyAdminUI();
   toast('ออกจาก Admin mode แล้ว');
+}
+
+/* ============================ PUBLISH TO GITHUB PAGES ============================ */
+const GH_REPO='NonpawitS/Issue-Command-center';
+const GH_FILE='data.json';
+const LS_GH_TOKEN='icc_gh_token';
+
+function openPublishModal(){
+  if(!isAdmin()){toast('กรุณาเข้าสู่ Admin mode ก่อน');return;}
+  if(!ROWS.length){toast('โหลดข้อมูลก่อน แล้วค่อย Publish');return;}
+  /* pre-fill saved token */
+  const saved=localStorage.getItem(LS_GH_TOKEN)||'';
+  document.getElementById('ghToken').value=saved;
+  /* preview */
+  const anchRows=ROWS.filter(r=>r.source==='Anchanto');
+  const openCount=anchRows.filter(r=>r.isOpen).length;
+  document.getElementById('publishPreview').innerHTML=
+    `จะ publish <b>${anchRows.length} issues</b> (Anchanto-FC) — Open: <b>${openCount}</b> / Closed: <b>${anchRows.length-openCount}</b>`;
+  document.getElementById('publishStatus').textContent='';
+  document.getElementById('publishConfirmBtn').disabled=false;
+  openModal('publishModal');
+}
+
+async function doPublish(){
+  const token=(document.getElementById('ghToken').value||'').trim();
+  if(!token){setPublishStatus('กรุณากรอก GitHub Token','err');return;}
+  /* Save token for next time */
+  localStorage.setItem(LS_GH_TOKEN,token);
+
+  const anchRows=ROWS.filter(r=>r.source==='Anchanto');
+  if(!anchRows.length){setPublishStatus('ไม่มีข้อมูล Anchanto-FC','err');return;}
+
+  document.getElementById('publishConfirmBtn').disabled=true;
+  setPublishStatus('⏳ กำลัง publish…','loading');
+
+  /* Build export payload — strip raw Excel row, keep only needed fields */
+  const exportRows=anchRows.map(r=>({
+    id:r.id, title:r.title, category:r.category, severity:r.severity, status:r.status,
+    isOpen:r.isOpen, isCancelled:r.isCancelled, ageDays:r.ageDays,
+    dateStr:r.date?r.date.toISOString().slice(0,10):'',
+    plant:r.plant, weborder:r.weborder, mkpStatus:r.mkpStatus,
+    omsStatus:r.omsStatus, wmsStatus:r.wmsStatus, action:r.action,
+    owner:r.owner, rootcause:r.rootcause, sheet:r.sheet,
+    problemType:r.raw&&r.raw['ปัญหาที่พบ']?r.raw['ปัญหาที่พบ']:''
+  }));
+
+  const payload={
+    published:new Date().toISOString(),
+    rows:exportRows
+  };
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+
+  try{
+    /* Get current file SHA (needed for update) */
+    const apiBase='https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE;
+    const headers={'Authorization':'token '+token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'};
+
+    let sha='';
+    try{
+      const getRes=await fetch(apiBase,{headers});
+      if(getRes.ok){const j=await getRes.json();sha=j.sha||'';}
+    }catch(e){/* file may not exist yet */}
+
+    const body={message:'publish: update data.json '+new Date().toLocaleString('th-TH'),content};
+    if(sha)body.sha=sha;
+
+    const putRes=await fetch(apiBase,{method:'PUT',headers,body:JSON.stringify(body)});
+    if(!putRes.ok){
+      const err=await putRes.json();
+      setPublishStatus('✗ GitHub API error: '+(err.message||putRes.status),'err');
+      document.getElementById('publishConfirmBtn').disabled=false;
+      return;
+    }
+
+    setPublishStatus('✓ Publish สำเร็จ! '+exportRows.length+' issues อัปเดตแล้ว — คนนอกจะเห็นภายใน ~1 นาที','ok');
+    toast('Publish สำเร็จ '+exportRows.length+' rows');
+  }catch(e){
+    setPublishStatus('✗ Error: '+e.message,'err');
+    document.getElementById('publishConfirmBtn').disabled=false;
+  }
+}
+
+function setPublishStatus(msg,cls){
+  const el=document.getElementById('publishStatus');
+  el.textContent=msg;
+  el.style.color=cls==='ok'?'var(--green)':cls==='err'?'var(--red)':'var(--muted)';
 }
 
 function changePin(){
