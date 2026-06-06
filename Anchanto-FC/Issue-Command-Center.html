@@ -119,9 +119,34 @@
   .kpi.kpi-green::before{background:var(--green)}
   .kpi.kpi-blue::before{background:#1d4ed8}
   .kpi.kpi-amber::before{background:var(--amber)}
+
+  /* Drag & Drop overlay — shows over whole page when dragging files in */
+  #dropOverlay{
+    position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;
+    background:rgba(204,0,0,.08);backdrop-filter:blur(2px);
+    border:4px dashed var(--accent);pointer-events:none;
+  }
+  #dropOverlay.visible{display:flex;}
+  #dropOverlay .drop-msg{
+    background:#fff;border:2px solid var(--accent);border-radius:20px;
+    padding:36px 60px;text-align:center;box-shadow:0 8px 40px rgba(204,0,0,.18);
+  }
+  #dropOverlay .drop-msg .icon{font-size:48px;margin-bottom:8px;}
+  #dropOverlay .drop-msg h2{margin:0 0 6px;color:var(--accent);font-size:20px;}
+  #dropOverlay .drop-msg p{margin:0;color:var(--muted);font-size:13px;}
 </style>
 </head>
 <body>
+
+<!-- Full-page drag overlay -->
+<div id="dropOverlay">
+  <div class="drop-msg">
+    <div class="icon">📥</div>
+    <h2>วางไฟล์ Excel ที่นี่</h2>
+    <p>รองรับ .xlsx, .xls, .csv<br>Anchanto-FC และ FC Ops</p>
+  </div>
+</div>
+
 <header>
   <h1>⬢ 6.6 Campaign — Issue Command Center</h1>
   <span class="badge" id="dataBadge">no data loaded</span>
@@ -136,13 +161,15 @@
     <button class="btn-ghost" onclick="openSettings()">⚙ Settings</button>
     <button class="btn-ghost" onclick="loadSample()">▣ Sample</button>
     <label class="btn btn-ghost" style="cursor:pointer">↥ Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></label>
-    <button id="publishBtn" class="btn-ghost" onclick="openPublishModal()" title="Publish ข้อมูล Anchanto-FC ให้คนนอกดูได้" style="background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)">📤 Publish</button>
+    <button class="btn-ghost" onclick="resetData()" title="ล้างข้อมูลทั้งหมด แล้วโหลดใหม่">🔄 Reset</button>
+    <button id="publishBtn" class="btn-ghost" onclick="openPublishModal()" title="Publish ข้อมูลให้คนนอกดูได้" style="background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)">📤 Publish</button>
     <span class="admin-badge">ADMIN</span>
     <button class="btn-ghost" onclick="lockAdmin()" title="ออกจาก Admin mode" style="font-size:11px;padding:4px 8px">🔒 Lock</button>
   </div>
   <!-- Viewer mode controls -->
   <div id="viewerControls" style="display:flex;gap:6px;align-items:center">
     <span class="viewer-status">👁 Viewer mode</span>
+    <label class="btn btn-ghost" style="cursor:pointer;font-size:12px;padding:5px 10px">↥ Load File<input type="file" accept=".xlsx,.xls,.csv" multiple hidden onchange="handleFiles(this.files)"></label>
     <button class="btn-ghost" onclick="openPinModal()" style="font-size:12px;padding:5px 10px">🔑 Admin</button>
   </div>
 </header>
@@ -154,7 +181,7 @@
 </nav>
 
 <main>
-  <!-- SharePoint fetch panel — Admin only / hidden for viewers -->
+  <!-- SharePoint fetch panel — Admin only / hidden for viewers / hidden on non-localhost -->
   <div class="sp-panel" id="spAdminPanel" style="display:none">
     <h4>☁ SharePoint Auto-Load — Excel / CSV</h4>
     <div style="display:grid;gap:8px">
@@ -170,6 +197,14 @@
         <button onclick="saveSpUrls()" style="font-size:12px">💾 Save URLs</button>
         <button onclick="fetchBothSharePoint()" class="btn-accent">⟳ Fetch ทั้งคู่</button>
       </div>
+    </div>
+  </div>
+  <!-- Non-localhost notice: SharePoint fetch not available -->
+  <div id="spCorsNotice" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:14px 16px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px">⚠️ SharePoint Auto-Load ไม่พร้อมใช้งานบน Vercel</div>
+    <div style="font-size:12px;color:#92400e;line-height:1.6">
+      เนื่องจาก CORS policy ของ SharePoint — การ fetch ข้อมูลจาก SharePoint โดยตรงต้องใช้ผ่าน <b>localhost</b> เท่านั้น<br>
+      กรุณาเปิดด้วย <b>Open-Dashboard.bat</b> แทน หรือ <b>drag &amp; drop</b> ไฟล์ Excel ด้านล่างได้เลย
     </div>
   </div>
   <!-- Fetch status — visible to all -->
@@ -236,8 +271,8 @@
     <button onclick="closeModal('publishModal')">✕</button>
   </div>
   <p class="muted" style="margin:0 0 14px;font-size:13px">
-    ระบบจะ export ข้อมูล <b>Anchanto-FC</b> ทั้งหมดที่โหลดอยู่ ขึ้น GitHub (<code>data.json</code>)<br>
-    คนนอกสามารถเปิดดูได้ที่ <a href="https://nonpawits.github.io/Issue-Command-center/" target="_blank" style="color:var(--accent)">nonpawits.github.io/Issue-Command-center/</a>
+    ระบบจะ export ข้อมูล <b>Anchanto-FC + FC Ops</b> ทั้งหมดที่โหลดอยู่ ขึ้น GitHub (<code>data.json</code>)<br>
+    คนนอกสามารถเปิดดูได้ที่ <a href="https://issue-command-center-sigma.vercel.app/viewer" target="_blank" style="color:var(--accent)">issue-command-center-sigma.vercel.app/viewer</a>
   </p>
   <div class="card" style="margin-bottom:12px;padding:12px">
     <div style="font-size:12px;color:var(--muted);margin-bottom:4px">GitHub Personal Access Token <span style="color:var(--red)">*</span></div>
@@ -349,11 +384,25 @@ const DEFAULT_PIN='6600';
 function getPin(){return localStorage.getItem(LS_PIN)||DEFAULT_PIN;}
 function isAdmin(){return sessionStorage.getItem(LS_ADMIN_SESSION)==='1';}
 
+const IS_LOCALHOST=/^(localhost|127\.)/.test(location.hostname);
+
 function applyAdminUI(){
   const admin=isAdmin();
   document.getElementById('adminControls').style.display=admin?'flex':'none';
   document.getElementById('viewerControls').style.display=admin?'none':'flex';
-  document.getElementById('spAdminPanel').style.display=admin?'block':'none';
+  /* SharePoint panel: only on localhost (CORS requirement) */
+  const spPanel=document.getElementById('spAdminPanel');
+  const corsNotice=document.getElementById('spCorsNotice');
+  if(admin&&IS_LOCALHOST){
+    spPanel.style.display='block';
+    corsNotice.style.display='none';
+  } else if(admin&&!IS_LOCALHOST){
+    spPanel.style.display='none';
+    corsNotice.style.display='block';
+  } else {
+    spPanel.style.display='none';
+    corsNotice.style.display='none';
+  }
 }
 
 function openPinModal(){
@@ -383,6 +432,21 @@ function lockAdmin(){
   toast('ออกจาก Admin mode แล้ว');
 }
 
+function resetData(){
+  RAW=[];ROWS=[];pendingSources=[];CANCELLED_ORDERS=new Set();
+  CONFIG.fieldMap={};saveConfig();
+  document.getElementById('emptyState').style.display='flex';
+  document.getElementById('dataBadge').textContent='no data loaded';
+  /* Reset charts */
+  Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
+  CHARTS={};
+  document.getElementById('kpiRow').innerHTML='';
+  document.getElementById('issueTable').querySelector('tbody').innerHTML='';
+  document.getElementById('recurList').innerHTML='';
+  document.getElementById('rootList').innerHTML='';
+  toast('ล้างข้อมูลแล้ว — ลาก Excel มาวางได้เลย');
+}
+
 /* ============================ PUBLISH TO GITHUB PAGES ============================ */
 const GH_REPO='NonpawitS/Issue-Command-center';
 const GH_FILE='data.json';
@@ -395,10 +459,10 @@ function openPublishModal(){
   const saved=localStorage.getItem(LS_GH_TOKEN)||'';
   document.getElementById('ghToken').value=saved;
   /* preview */
-  const anchRows=ROWS.filter(r=>r.source==='Anchanto');
+  const anchRows=ROWS;
   const openCount=anchRows.filter(r=>r.isOpen).length;
   document.getElementById('publishPreview').innerHTML=
-    `จะ publish <b>${anchRows.length} issues</b> (Anchanto-FC) — Open: <b>${openCount}</b> / Closed: <b>${anchRows.length-openCount}</b>`;
+    `จะ publish <b>${anchRows.length} issues</b>  — Open: <b>${openCount}</b> / Closed: <b>${anchRows.length-openCount}</b>`;
   document.getElementById('publishStatus').textContent='';
   document.getElementById('publishConfirmBtn').disabled=false;
   openModal('publishModal');
@@ -410,8 +474,8 @@ async function doPublish(){
   /* Save token for next time */
   localStorage.setItem(LS_GH_TOKEN,token);
 
-  const anchRows=ROWS.filter(r=>r.source==='Anchanto');
-  if(!anchRows.length){setPublishStatus('ไม่มีข้อมูล Anchanto-FC','err');return;}
+  const anchRows=ROWS;
+  if(!anchRows.length){setPublishStatus('ไม่มีข้อมูล','err');return;}
 
   document.getElementById('publishConfirmBtn').disabled=true;
   setPublishStatus('⏳ กำลัง publish…','loading');
@@ -552,11 +616,10 @@ const LS_SP_FC  ='icc_sp_url_fc';
   /* Apply admin UI state immediately */
   applyAdminUI();
 
-  /* Auto-fetch on page load if URLs are saved */
+  /* Auto-fetch on page load — only on localhost (SharePoint CORS requirement) */
   const hasUrl=(!isExample(a)&&a)||(!isExample(f)&&f);
-  if(hasUrl){
+  if(hasUrl&&IS_LOCALHOST){
     setSpStatus('⏳ กำลัง auto-load ข้อมูล…','loading');
-    /* small delay to let DOM render first */
     setTimeout(()=>fetchBothSharePoint(),600);
   }
 })();
@@ -710,20 +773,47 @@ const FIELD_SYNONYMS={
 };
 
 document.getElementById('fileInput')?.addEventListener('change',e=>handleFiles(e.target.files));
-['dragover','dragenter'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.add('over');}));
-['dragleave','drop'].forEach(ev=>document.body.addEventListener(ev,e=>{e.preventDefault();document.getElementById('dropZone')?.classList.remove('over');}));
-document.body.addEventListener('drop',e=>{if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);});
 
-function handleFiles(files){
-  let done=0; const all=[...files];
+/* --- Drag & Drop: full-page overlay --- */
+let _dragCounter=0;
+const _overlay=document.getElementById('dropOverlay');
+document.body.addEventListener('dragenter',e=>{
+  if(!e.dataTransfer.types.includes('Files'))return;
+  e.preventDefault();_dragCounter++;
+  _overlay.classList.add('visible');
+  document.getElementById('dropZone')?.classList.add('over');
+});
+document.body.addEventListener('dragover',e=>{
+  if(!e.dataTransfer.types.includes('Files'))return;
+  e.preventDefault();
+});
+document.body.addEventListener('dragleave',e=>{
+  _dragCounter--;
+  if(_dragCounter<=0){_dragCounter=0;_overlay.classList.remove('visible');document.getElementById('dropZone')?.classList.remove('over');}
+});
+document.body.addEventListener('drop',e=>{
+  e.preventDefault();_dragCounter=0;
+  _overlay.classList.remove('visible');
+  document.getElementById('dropZone')?.classList.remove('over');
+  if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files,replaceAll){
+  const all=[...files];if(!all.length)return;
+  /* replaceAll=true → clear first (called from Fetch or explicit reset) */
+  if(replaceAll){RAW=[];pendingSources=[];CANCELLED_ORDERS=new Set();CONFIG.fieldMap={};saveConfig();}
+  let done=0;
   all.forEach(file=>{
     const r=new FileReader();
     r.onload=ev=>{
       const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
-      /* Guess source from filename: Appareal/Apparel → FC, otherwise Anchanto */
       const defSrc=/apparel|appareal/i.test(file.name)?'FC':'Anchanto';
       ingestWorkbook(wb,file.name,'',defSrc);
-      if(++done===all.length){autoMap();enrichAndRender();toast('Loaded '+RAW.length+' rows. Check Settings to confirm tagging & mapping.');}
+      if(++done===all.length){
+        autoMap();enrichAndRender();
+        const srcNames=[...new Set(pendingSources.map(p=>p.type))].join(' + ');
+        toast('โหลดแล้ว '+RAW.length+' rows ('+srcNames+') จาก '+pendingSources.length+' sheet(s)');
+      }
     };
     r.readAsArrayBuffer(file);
   });
