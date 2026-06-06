@@ -145,16 +145,88 @@ let filter={source:'',category:'',status:'',severity:'',q:''};
 const PIPELINE=['New','Investigating','Fix In Progress','UAT','Deployed','Closed','On Hold'];
 const SEVS=['Critical','High','Medium','Low'];
 
+function normalizeAnchanto(r,i){
+  const dateRaw=r['วันที่ (วัน/เดือน/ปี)']||'';
+  const dateNum=parseFloat(dateRaw);
+  const dateObj=dateNum>40000?new Date(Math.round((dateNum-25569)*86400000)):null;
+  const dateStr=dateObj?dateObj.toLocaleDateString('th-TH'):'';
+  const ageDays=dateObj?Math.floor((Date.now()-dateObj.getTime())/86400000):'';
+  const logNo=r['Subject: LogNo:']||'';
+  const status=r['Status Update Fixed']||'';
+  const statusMap={'Complete':'Closed','Pending':'Fix In Progress','':'New'};
+  return{
+    id:'ACT-'+(logNo||i),
+    source:'Anchanto',
+    title:r['Details']||r['ปัญหาที่พบ']||'',
+    category:r['ปัญหาที่พบ']||'',
+    severity:'',
+    status:statusMap[status]||status||'New',
+    isOpen:status!=='Complete',
+    isCancelled:false,
+    weborder:r['WebOrder']||'',
+    mkpStatus:r['MKP status']||'',
+    omsStatus:r['OMS statu']||'',
+    wmsStatus:r['WMS status']||'',
+    action:r['Action']||'',
+    problemType:r['ปัญหาที่พบ']||'',
+    dataIssue:r['Data Issue']||'',
+    remark:r['Remark']||'',
+    dateStr,ageDays,sheet:'Anchanto'
+  };
+}
+function normalizeFC(r,i){
+  const dateRaw=r['วันที่ (วัน/เดือน/ปี)']||'';
+  const dateNum=parseFloat(dateRaw);
+  const dateObj=dateNum>40000?new Date(Math.round((dateNum-25569)*86400000)):null;
+  const dateStr=dateObj?dateObj.toLocaleDateString('th-TH'):'';
+  const ageDays=dateObj?Math.floor((Date.now()-dateObj.getTime())/86400000):'';
+  const logNo=(r['Subject: LogNo:']||'').replace('Subject: ','');
+  const status=r['Status Update Fixed']||'';
+  const statusMap={'Complete':'Closed','Pending':'Fix In Progress','':'New'};
+  const sev=r['Severity']||'';
+  return{
+    id:'FC-'+(logNo||i),
+    source:'FC',
+    title:r['Details']||r['ปัญหาที่พบ']||'',
+    category:r['Category']||'',
+    severity:sev,
+    status:statusMap[status]||status||'New',
+    isOpen:status!=='Complete',
+    isCancelled:false,
+    weborder:'',mkpStatus:'',omsStatus:'',wmsStatus:'',
+    action:'',
+    problemType:r['ปัญหาที่พบ']||'',
+    dataIssue:r['Data Issue']||'',
+    remark:r['Remark']||'',
+    plant:r['Plant']||'',
+    dateStr,ageDays,sheet:'FC'
+  };
+}
+
 async function init(){
   try{
     const res=await fetch('data.json?_t='+Date.now(),{cache:'no-store'});
     const data=await res.json();
-    if(!data.rows||!data.rows.length){
+
+    /* Support both old format (data.rows) and new PA format (data.anchanto + data.fc) */
+    let rows=[];
+    if(data.rows&&data.rows.length){
+      rows=data.rows;
+    } else {
+      const anch=Array.isArray(data.anchanto)?data.anchanto:[];
+      const fc=Array.isArray(data.fc)?data.fc:[];
+      rows=[
+        ...anch.map((r,i)=>normalizeAnchanto(r,i)),
+        ...fc.map((r,i)=>normalizeFC(r,i))
+      ];
+    }
+
+    if(!rows.length){
       document.getElementById('emptyState').style.display='flex';
       document.getElementById('badge').textContent='ไม่มีข้อมูล';
       return;
     }
-    ALL=data.rows;
+    ALL=rows;
     ROWS=ALL.slice();
 
     /* Published timestamp */
